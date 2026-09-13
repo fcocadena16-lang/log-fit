@@ -320,26 +320,85 @@ async function render(){
 }
 
 async function homeHTML(){
-  const m=await latestMeasurement(); const sessions=await getAll(STORE_SESSIONS);
+  const m=await latestMeasurement();
+  const sessions=await getAll(STORE_SESSIONS);
   const recent=sessions.sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt).slice(0,3);
-  const day=await getFoodDay(today(),false); const totals=day?foodDayTotals(day):emptyMacros(); const goal=await getNutritionGoal();
-  return `<main class="screen">
-    <div class="topbar"><div><div class="subtle">Registro personal</div><h1>Fit Log</h1></div><span class="status ok">● Local</span></div>
-    <section class="card hero"><div class="subtle">Última medición</div><div class="hero-grid">
-      <div class="metric"><span class="subtle">Peso</span><strong>${m?.weight??'—'}${m?.weight?' kg':''}</strong></div>
-      <div class="metric"><span class="subtle">Cintura</span><strong>${m?.waistMin??'—'}${m?.waistMin?' cm':''}</strong></div>
-    </div></section>
-    <section class="card"><div class="row between"><div><div class="subtle">Comida de hoy</div><strong>${round(totals.kcal)} / ${round(goal.targetCalories)} kcal</strong></div><button class="btn ghost" data-action="food-now">Abrir</button></div></section>
-    <div class="section-title"><h2>Entrenar</h2><button class="btn ghost" data-action="measure-now">+ Mediciones</button></div>
-    <div class="routine-grid">${Object.keys(ROUTINES).map(n=>`<button class="routine-btn" data-routine="${esc(n)}"><strong>${esc(n)}</strong><small>${ROUTINES[n].length} ejercicios</small></button>`).join('')}</div>
-    <div class="section-title"><h2>Reciente</h2><button class="btn ghost" data-action="history">Ver todo</button></div>
-    ${recent.length?`<div class="list">${recent.map(s=>`<button class="list-item" data-session-id="${s.id}"><strong>${esc(s.routine)}</strong><span class="subtle">${fmtDate(s.date)} · ${s.exercises.length} ejercicios</span></button>`).join('')}</div>`:'<div class="empty">Todavía no hay entrenamientos guardados.</div>'}
-    <div class="section-title"><h2>Respaldo</h2></div>
-    <section class="card">
-      <p class="subtle" style="margin-top:0">Guarda entrenamientos, mediciones, alimentos, objetivos y registros de comida.</p>
-      <div class="backup-actions"><button class="btn primary" data-action="export-backup">Exportar respaldo</button><button class="btn ghost" data-action="import-backup">Importar respaldo</button></div>
-      <input id="backupFileInput" class="hide" type="file" accept="application/json,.json"><div id="backupMessage" class="subtle" style="margin-top:10px"></div>
+  const day=await getFoodDay(today(),false);
+  const totals=day?foodDayTotals(day):emptyMacros();
+  const goal=await getNutritionGoal();
+  const kcalPct=goal.targetCalories?Math.min(100,round((totals.kcal/goal.targetCalories)*100)):0;
+  return `<main class="screen home-screen">
+    <div class="topbar home-topbar">
+      <div>
+        <div class="subtle eyebrow">Registro personal</div>
+        <h1>Fit Log</h1>
+      </div>
+      <button class="icon-btn icon-square" data-action="open-settings" aria-label="Ajustes">⋯</button>
+    </div>
+
+    <section class="card hero soft-gradient">
+      <div class="hero-header">
+        <div>
+          <div class="subtle">Resumen de hoy</div>
+          <h2 class="hero-title">Todo tu progreso en un solo lugar</h2>
+        </div>
+        <span class="status status-pill ok">● Local</span>
+      </div>
+      <div class="hero-grid hero-grid-4">
+        <div class="metric">
+          <span class="subtle">Peso</span>
+          <strong>${m?.weight??'—'}${m?.weight?' kg':''}</strong>
+          <small>${m?.date?`Última: ${fmtDate(m.date)}`:'Sin medición guardada'}</small>
+        </div>
+        <div class="metric">
+          <span class="subtle">Cintura</span>
+          <strong>${m?.waistMin??'—'}${m?.waistMin?' cm':''}</strong>
+          <small>${m?.date?'Última medición':'Agrega tu primera medición'}</small>
+        </div>
+        <button class="metric metric-action" data-action="food-now">
+          <span class="subtle">Comida</span>
+          <strong>${round(totals.kcal)} / ${round(goal.targetCalories)}</strong>
+          <small>${kcalPct}% del objetivo diario</small>
+        </button>
+        <button class="metric metric-action" data-action="measure-now">
+          <span class="subtle">Mediciones</span>
+          <strong>${m?.date?fmtDate(m.date):'Registrar'}</strong>
+          <small>${m?.date?'Abrir y actualizar':'Agregar ahora'}</small>
+        </button>
+      </div>
     </section>
+
+    <div class="section-title">
+      <h2>Entrenar</h2>
+      <button class="btn ghost compact" data-action="measure-now">+ Medición</button>
+    </div>
+    <div class="routine-grid">${Object.keys(ROUTINES).map(n=>`<button class="routine-btn" data-routine="${esc(n)}"><strong>${esc(n)}</strong><small>${ROUTINES[n].length} ejercicios</small></button>`).join('')}</div>
+
+    <div class="section-title">
+      <h2>Reciente</h2>
+      <button class="btn ghost compact" data-action="history">Ver todo</button>
+    </div>
+    ${recent.length?`<div class="list">${recent.map(s=>`<button class="list-item" data-session-id="${s.id}"><strong>${esc(s.routine)}</strong><span class="subtle">${fmtDate(s.date)} · ${s.exercises.length} ejercicios</span></button>`).join('')}</div>`:'<div class="empty">Todavía no hay entrenamientos guardados.</div>'}
+
+    <div id="settingsSheet" class="sheet-backdrop hide" aria-hidden="true">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <div>
+            <div class="subtle">Herramientas</div>
+            <h3>Ajustes</h3>
+          </div>
+          <button class="icon-btn icon-square" data-action="close-settings" aria-label="Cerrar">✕</button>
+        </div>
+        <section class="card sheet-card">
+          <div class="subtle">Respaldo</div>
+          <h4 style="margin:6px 0 8px;font-size:20px">Importar y exportar</h4>
+          <p class="subtle" style="margin-top:0">Guarda o restaura entrenamientos, mediciones, alimentos, objetivos y registros de comida.</p>
+          <div class="backup-actions"><button class="btn primary" data-action="export-backup">Exportar respaldo</button><button class="btn ghost" data-action="import-backup">Importar respaldo</button></div>
+          <input id="backupFileInput" class="hide" type="file" accept="application/json,.json"><div id="backupMessage" class="subtle" style="margin-top:10px"></div>
+        </section>
+      </div>
+    </div>
   </main>`;
 }
 
@@ -695,6 +754,10 @@ function bindViewEvents(){
   document.querySelector('[data-action="food-now"]')?.addEventListener('click',()=>setView('food'));
   document.querySelector('[data-action="history"]')?.addEventListener('click',()=>{currentView='history';render();});
   document.querySelector('[data-action="history-back"]')?.addEventListener('click',()=>setView('home'));
+  const settingsSheet=document.getElementById('settingsSheet');
+  document.querySelector('[data-action="open-settings"]')?.addEventListener('click',()=>settingsSheet?.classList.remove('hide'));
+  document.querySelector('[data-action="close-settings"]')?.addEventListener('click',()=>settingsSheet?.classList.add('hide'));
+  settingsSheet?.addEventListener('click',e=>{ if(e.target===settingsSheet) settingsSheet.classList.add('hide'); });
   document.querySelector('[data-action="export-backup"]')?.addEventListener('click',exportBackup);
   document.querySelector('[data-action="import-backup"]')?.addEventListener('click',()=>document.getElementById('backupFileInput')?.click());
   document.getElementById('backupFileInput')?.addEventListener('change',async e=>{const file=e.target.files?.[0];if(file) await importBackupFile(file);e.target.value='';});

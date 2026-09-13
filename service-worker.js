@@ -1,9 +1,9 @@
-const CACHE = 'fit-log-shell-v6-light-fix';
+const CACHE = 'fit-log-shell-v7-apple-light';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=6',
-  './app.js',
+  './styles.css?v=7',
+  './app.js?v=7',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png'
