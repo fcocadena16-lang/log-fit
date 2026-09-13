@@ -1,10 +1,10 @@
-const APP_VERSION = '9.4';
-const CACHE = 'fit-log-shell-v9.4-macro-colors';
+const APP_VERSION = '9.5';
+const CACHE = 'fit-log-shell-v9.5-training-tools';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=9.4',
-  './app.js?v=9.4',
+  './styles.css?v=9.5',
+  './app.js?v=9.5',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',

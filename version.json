@@ -1,6 +1,6 @@
 {
-  "version": "9.4",
+  "version": "9.5",
   "published": "2026-09-13",
   "name": "Fit Log",
-  "notes": "Colores distintos por macro y anillo de calorías segmentado por comida, con cada comida en un color diferente."
+  "notes": "Entrenamiento con autoguardado persistente, cambio de ejercicio al tocar el título, resultados izquierda/derecha, precarga del último entrenamiento, propagación de peso, calculadora lb/kg, temporizador de 3 min y cardio al final."
 }
