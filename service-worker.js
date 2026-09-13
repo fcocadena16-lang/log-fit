@@ -1,4 +1,4 @@
-const CACHE = 'fit-log-shell-v4';
+const CACHE = 'fit-log-shell-v5-light';
 const APP_SHELL = [
   './',
   './index.html',
