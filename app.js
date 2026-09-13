@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '9.2';
+const APP_VERSION = '9.3';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -562,7 +562,7 @@ async function measureHTML(){
           <div class="field"><label>Estatura <span>cm</span></label><input name="height" inputmode="decimal" type="number" step="0.1" min="50" max="250" value="${ref.height??''}" placeholder="176"></div>
           <div class="field"><label>Fecha de nacimiento</label><input id="birthDateInput" name="birthDate" type="date" value="${esc(ref.birthDate)}"></div>
         </div>
-        <div class="age-display"><span>Edad calculada</span><strong id="calculatedAge">${age!==null?`${age} años`:'—'}</strong><small>Se calcula automáticamente desde tu fecha de nacimiento.</small></div>
+        <div class="age-display simple-age"><span>Edad :</span><strong id="calculatedAge">${age!==null?`${age} años`:'—'}</strong></div>
       </div>
       <div class="form-grid">${MEASURE_FIELDS.map(([k,l,u])=>`<div class="field"><label>${l} <span>${u}</span></label><input name="${k}" inputmode="decimal" type="number" step="0.1" placeholder="${prev?.[k]??''}"></div>`).join('')}</div>
       <div class="field"><label>Notas</label><textarea name="notes" placeholder="Condiciones de medición, observaciones…"></textarea></div>
@@ -660,8 +660,9 @@ async function getNutritionGoal(){
   let goal=await getSetting('nutritionGoal');
   const ref=await measurementReference();
   if(!goal) goal={...DEFAULT_NUTRITION};
-  if(goal.mode==='manual') return goal;
 
+  // Desde v9.3 el cálculo es siempre automático. Incluso si una versión anterior
+  // dejó guardado el modo manual, se migra automáticamente al modo automático.
   const source={...DEFAULT_NUTRITION,...goal,
     key:'nutritionGoal',
     mode:'auto',
@@ -727,32 +728,18 @@ async function foodCatalogHTML(){
 }
 async function foodGoalHTML(){
   const goal=await getNutritionGoal();
-  const ref=await measurementReference();
-  const missing=[];
-  if(ref.weight===null) missing.push('peso');
-  if(ref.height===null) missing.push('estatura');
-  if(!ref.birthDate) missing.push('fecha de nacimiento');
-  return `<section class="card">
-    <div class="notice">En modo automático, Fit Log toma <strong>peso, estatura y edad directamente de Mediciones</strong>. Al guardar una nueva medición, las calorías y macros se recalculan sin que tengas que actualizar esta pantalla manualmente.</div>
-    ${missing.length?`<div class="notice warn" style="margin-top:10px">Completa ${missing.join(', ')} en Mediciones para usar tus datos reales. Mientras falten, se conserva el último valor disponible o el valor inicial.</div>`:''}
+  return `<section class="card nutrition-auto-card">
     <form id="nutritionGoalForm">
-      <div class="field"><label>Modo</label><select name="mode" id="goalMode"><option value="auto" ${goal.mode!=='manual'?'selected':''}>Automático · usar Mediciones</option><option value="manual" ${goal.mode==='manual'?'selected':''}>Manual</option></select></div>
-      <div id="autoGoalFields" class="${goal.mode==='manual'?'hide':''}">
-        <div class="auto-reference-card">
-          <div class="auto-reference-head"><div><span class="dashboard-kicker">Referencia actual</span><h3>Datos de Mediciones</h3></div><span class="profile-sync-badge">Sincronizado</span></div>
-          <div class="form-grid">
-            <div class="field"><label>Peso usado (kg)</label><input name="calcWeight" type="number" step="0.1" value="${round(+goal.calcWeight||99.5)}" readonly></div>
-            <div class="field"><label>Estatura (cm)</label><input name="height" type="number" step="0.1" value="${round(+goal.height||176)}" readonly></div>
-            <div class="field"><label>Edad calculada</label><input name="age" type="number" step="1" value="${+goal.age||34}" readonly></div>
-            <div class="field"><label>Fecha de nacimiento</label><input type="text" value="${ref.birthDate?fmtDate(ref.birthDate):'No registrada'}" readonly></div>
-          </div>
-          <div class="subtle auto-reference-foot">${goal.measurementDate?`Última referencia: ${fmtDate(goal.measurementDate)}`:'Aún no hay una medición de referencia.'}</div>
-        </div>
-        <div class="form-grid"><div class="field"><label>Actividad</label><select name="activity"><option value="1.2" ${+goal.activity===1.2?'selected':''}>1.2 Sedentario</option><option value="1.375" ${+goal.activity===1.375?'selected':''}>1.375 Poca act. 1-3 días</option><option value="1.55" ${+goal.activity===1.55?'selected':''}>1.55 Moderada 3-5 días</option><option value="1.725" ${+goal.activity===1.725?'selected':''}>1.725 Muy activo 6-7 días</option><option value="1.9" ${+goal.activity===1.9?'selected':''}>1.9 Muy activo + trabajo físico</option></select></div><div class="field"><label>Déficit (%)</label><input name="deficit" type="number" step="1" value="${+goal.deficit||20}"></div><div class="field"><label>Proteína (g/kg)</label><input name="proteinPerKg" type="number" step="0.1" value="${+goal.proteinPerKg||2.1}"></div><div class="field"><label>Grasa (g/kg)</label><input name="fatPerKg" type="number" step="0.1" value="${+goal.fatPerKg||0.7}"></div></div>
-        <div id="goalPreview" class="goal-preview"></div>
+      <input type="hidden" name="calcWeight" value="${round(+goal.calcWeight||DEFAULT_NUTRITION.calcWeight,2)}">
+      <input type="hidden" name="height" value="${round(+goal.height||DEFAULT_NUTRITION.height,2)}">
+      <input type="hidden" name="age" value="${+goal.age||DEFAULT_NUTRITION.age}">
+      <input type="hidden" name="proteinPerKg" value="${+goal.proteinPerKg||DEFAULT_NUTRITION.proteinPerKg}">
+      <input type="hidden" name="fatPerKg" value="${+goal.fatPerKg||DEFAULT_NUTRITION.fatPerKg}">
+      <div class="nutrition-controls">
+        <div class="field"><label>Actividad</label><select name="activity"><option value="1.2" ${+goal.activity===1.2?'selected':''}>Sedentario (1.2)</option><option value="1.375" ${+goal.activity===1.375?'selected':''}>Poca actividad (1.375)</option><option value="1.55" ${+goal.activity===1.55?'selected':''}>Moderada (1.55)</option><option value="1.725" ${+goal.activity===1.725?'selected':''}>Muy activo (1.725)</option><option value="1.9" ${+goal.activity===1.9?'selected':''}>Muy activo + trabajo físico (1.9)</option></select></div>
+        <div class="field"><label>Déficit (%)</label><input name="deficit" type="number" step="1" min="0" max="50" value="${+goal.deficit||20}"></div>
       </div>
-      <div id="manualGoalFields" class="${goal.mode==='manual'?'':'hide'}"><div class="form-grid"><div class="field"><label>Calorías</label><input name="manualCalories" type="number" step="1" value="${round(+goal.targetCalories)}"></div><div class="field"><label>Proteína (g)</label><input name="manualProtein" type="number" step="1" value="${round(+goal.protein)}"></div><div class="field"><label>Grasa (g)</label><input name="manualFat" type="number" step="1" value="${round(+goal.fat)}"></div><div class="field"><label>Carbohidratos (g)</label><input name="manualCarbs" type="number" step="1" value="${round(+goal.carbs)}"></div></div></div>
-      <button class="btn primary block" type="submit">Guardar configuración</button>
+      <div id="goalPreview" class="goal-preview"></div>
     </form>
   </section>`;
 }
@@ -833,21 +820,56 @@ async function loadFoodTemplate(id){
   if(day.meals.some(m=>m.items.length) && !confirm('Este día ya tiene alimentos. ¿Reemplazarlos por la plantilla?')) return;
   day.meals=clone(t.meals).map((m,mi)=>({...m,id:`meal-${mi}`,items:(m.items||[]).map(it=>({...it,id:uid('item'),addedAt:Date.now()}))})); day.updatedAt=Date.now(); await put(STORE_FOOD_DAYS,day); render();
 }
+let nutritionAutoSaveTimer=null;
 async function saveNutritionGoal(form){
-  const fd=new FormData(form); const mode=String(fd.get('mode'));
-  let goal;
-  if(mode==='manual'){
-    const old=await getNutritionGoal(); goal={...old,key:'nutritionGoal',mode:'manual',targetCalories:+fd.get('manualCalories'),protein:+fd.get('manualProtein'),fat:+fd.get('manualFat'),carbs:+fd.get('manualCarbs'),updatedAt:Date.now()};
-  }else{
-    const ref=await measurementReference();
-    goal=calculateNutritionGoal({key:'nutritionGoal',mode:'auto',calcWeight:ref.weight??(+fd.get('calcWeight')||DEFAULT_NUTRITION.calcWeight),height:ref.height??(+fd.get('height')||DEFAULT_NUTRITION.height),age:ref.age??(+fd.get('age')||DEFAULT_NUTRITION.age),birthDate:ref.birthDate||'',measurementDate:ref.latest?.date||'',activity:+fd.get('activity'),deficit:+fd.get('deficit'),proteinPerKg:+fd.get('proteinPerKg'),fatPerKg:+fd.get('fatPerKg')});
-  }
-  await put(STORE_SETTINGS,goal); alert('Objetivo guardado.'); render();
+  const fd=new FormData(form);
+  const ref=await measurementReference();
+  const old=await getSetting('nutritionGoal')||DEFAULT_NUTRITION;
+  const goal=calculateNutritionGoal({
+    ...DEFAULT_NUTRITION,
+    ...old,
+    key:'nutritionGoal',
+    mode:'auto',
+    calcWeight:ref.weight??(+fd.get('calcWeight')||DEFAULT_NUTRITION.calcWeight),
+    height:ref.height??(+fd.get('height')||DEFAULT_NUTRITION.height),
+    age:ref.age??(+fd.get('age')||DEFAULT_NUTRITION.age),
+    birthDate:ref.birthDate||'',
+    measurementDate:ref.latest?.date||'',
+    activity:+fd.get('activity')||DEFAULT_NUTRITION.activity,
+    deficit:Number.isFinite(+fd.get('deficit'))?+fd.get('deficit'):DEFAULT_NUTRITION.deficit,
+    proteinPerKg:+fd.get('proteinPerKg')||old.proteinPerKg||DEFAULT_NUTRITION.proteinPerKg,
+    fatPerKg:+fd.get('fatPerKg')||old.fatPerKg||DEFAULT_NUTRITION.fatPerKg
+  });
+  await put(STORE_SETTINGS,goal);
+  return goal;
 }
 function updateGoalPreview(){
   const form=document.getElementById('nutritionGoalForm'); const box=document.getElementById('goalPreview'); if(!form||!box) return; const fd=new FormData(form);
   const calc=calculateNutritionGoal({calcWeight:+fd.get('calcWeight'),height:+fd.get('height'),age:+fd.get('age'),activity:+fd.get('activity'),deficit:+fd.get('deficit'),proteinPerKg:+fd.get('proteinPerKg'),fatPerKg:+fd.get('fatPerKg')});
-  box.innerHTML=`<div class="goal-grid"><div><span>TRM</span><strong>${round(calc.trm)} kcal</strong></div><div><span>Gasto</span><strong>${round(calc.expenditure)} kcal</strong></div><div><span>Objetivo</span><strong>${round(calc.targetCalories)} kcal</strong></div><div><span>Macros</span><strong>P ${round(calc.protein)} · G ${round(calc.fat)} · C ${round(calc.carbs)}</strong></div></div>`;
+  const kcal=calc.targetCalories||1;
+  const proteinPct=Math.max(0,calc.protein*4/kcal*100);
+  const fatPct=Math.max(0,calc.fat*9/kcal*100);
+  const carbsPct=Math.max(0,100-proteinPct-fatPct);
+  box.innerHTML=`
+    <div class="goal-grid compact-goal-grid">
+      <div><span>TRM</span><strong>${round(calc.trm)} kcal</strong></div>
+      <div><span>Gasto</span><strong>${round(calc.expenditure)} kcal</strong></div>
+      <div><span>Déficit</span><strong>${round(+fd.get('deficit'))}%</strong></div>
+      <div><span>Objetivo</span><strong>${round(calc.targetCalories)} kcal</strong></div>
+    </div>
+    <div class="macro-percent-title">Macros</div>
+    <div class="macro-percent-grid">
+      <div class="macro-percent-card"><span>Proteína</span><strong>${round(proteinPct)}%</strong><small>${round(calc.protein)} g</small></div>
+      <div class="macro-percent-card"><span>Carbohidratos</span><strong>${round(carbsPct)}%</strong><small>${round(calc.carbs)} g</small></div>
+      <div class="macro-percent-card"><span>Grasas</span><strong>${round(fatPct)}%</strong><small>${round(calc.fat)} g</small></div>
+    </div>`;
+}
+function queueNutritionAutoSave(){
+  clearTimeout(nutritionAutoSaveTimer);
+  nutritionAutoSaveTimer=setTimeout(async()=>{
+    const form=document.getElementById('nutritionGoalForm');
+    if(form) await saveNutritionGoal(form);
+  },250);
 }
 
 function bindFoodEvents(){
@@ -874,10 +896,10 @@ function bindFoodEvents(){
   document.querySelector('[data-food-editor-back]')?.addEventListener('click',()=>{foodEditorId=null;if(foodPickerMealIndex!==null){foodScreen='picker';foodPickerFoodId=null;}else{foodScreen='main';foodTab='foods';document.getElementById('bottomNav').classList.remove('hide');}render();});
   document.getElementById('foodEditorForm')?.addEventListener('submit',e=>{e.preventDefault();saveFoodEditor(e.currentTarget);});
   document.querySelector('[data-delete-food]')?.addEventListener('click',async()=>{if(foodEditorId && confirm('¿Eliminar este alimento del catálogo? Los registros anteriores conservarán sus datos.')){await del(STORE_FOODS,foodEditorId);foodEditorId=null;foodScreen='main';foodTab='foods';document.getElementById('bottomNav').classList.remove('hide');render();}});
-  const goalMode=document.getElementById('goalMode'); goalMode?.addEventListener('change',()=>{document.getElementById('autoGoalFields')?.classList.toggle('hide',goalMode.value==='manual');document.getElementById('manualGoalFields')?.classList.toggle('hide',goalMode.value!=='manual');if(goalMode.value==='auto')updateGoalPreview();});
-  document.getElementById('nutritionGoalForm')?.addEventListener('input',()=>{if(document.getElementById('goalMode')?.value==='auto')updateGoalPreview();});
-  document.getElementById('nutritionGoalForm')?.addEventListener('submit',e=>{e.preventDefault();saveNutritionGoal(e.currentTarget);});
-  if(document.getElementById('goalPreview') && document.getElementById('goalMode')?.value==='auto') updateGoalPreview();
+  const nutritionForm=document.getElementById('nutritionGoalForm');
+  nutritionForm?.addEventListener('input',()=>{updateGoalPreview();queueNutritionAutoSave();});
+  nutritionForm?.addEventListener('change',async()=>{updateGoalPreview();clearTimeout(nutritionAutoSaveTimer);await saveNutritionGoal(nutritionForm);});
+  if(document.getElementById('goalPreview')) updateGoalPreview();
 }
 function filterFoodPicker(){
   const q=(document.getElementById('foodSearch')?.value||'').trim().toLowerCase(); const filter=document.querySelector('[data-food-filter].active')?.dataset.foodFilter||'all';

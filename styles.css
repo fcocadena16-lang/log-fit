@@ -253,3 +253,19 @@ body{font-size:16px}
 .auto-reference-card input[readonly]{background:#f5f8fc!important;color:#263244!important;border-color:#dfe7f1;opacity:1}
 .auto-reference-foot{margin-top:4px;font-size:13px}
 @media(max-width:520px){.profile-measure-title,.auto-reference-head{align-items:center}.profile-sync-badge{font-size:11px}}
+
+
+/* v9.3 · Nutrición siempre automática y resumen compacto */
+.age-display.simple-age{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px}
+.age-display.simple-age span{font-size:16px;font-weight:750;color:var(--ink-2)}
+.age-display.simple-age strong{font-size:22px}
+.nutrition-auto-card{padding:18px!important}
+.nutrition-controls{display:grid;grid-template-columns:1.35fr .65fr;gap:12px}
+.compact-goal-grid{margin-top:16px}
+.macro-percent-title{font-size:14px;font-weight:800;color:var(--ink-2);margin:18px 2px 10px}
+.macro-percent-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.macro-percent-card{min-width:0;border:1px solid #e1e7f0;background:#f8faff;border-radius:18px;padding:15px 10px;text-align:center}
+.macro-percent-card span{display:block;font-size:12px;color:var(--sub);font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.macro-percent-card strong{display:block;font-size:27px;letter-spacing:-.04em;margin:6px 0 3px;color:var(--ink)}
+.macro-percent-card small{display:block;font-size:12px;color:var(--sub)}
+@media(max-width:520px){.nutrition-controls{grid-template-columns:1fr}.macro-percent-grid{gap:7px}.macro-percent-card{padding:13px 6px}.macro-percent-card strong{font-size:24px}.macro-percent-card span{font-size:11px}}
