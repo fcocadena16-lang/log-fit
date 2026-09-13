@@ -424,24 +424,34 @@ function formatPrevious(rec){
 function renderWorkout(){
   const s=activeSessionDraft; if(!s) return;
   document.getElementById('bottomNav').classList.add('hide');
+  const pct=completionPct(s);
   document.getElementById('app').innerHTML=`<main class="screen workout-screen">
-    <div class="topbar workout-topbar"><button class="btn ghost workout-exit" data-action="close-workout">← Salir</button><div style="text-align:right"><div class="subtle">${fmtDate(s.date)}</div><h1 style="font-size:22px">${esc(s.routine)}</h1></div></div>
-    <div class="progressbar"><div style="width:${completionPct(s)}%"></div></div>
-    <div class="field"><label>Fecha</label><input id="sessionDate" type="date" value="${s.date}"></div>
+    <div class="topbar workout-topbar"><button class="btn ghost workout-exit" data-action="close-workout">← Salir</button><div class="workout-title"><div class="subtle">${fmtDate(s.date)}</div><h1>${esc(s.routine)}</h1></div></div>
+    <section class="workout-overview">
+      <div class="row between"><div><span class="subtle">Progreso</span><strong>${pct}%</strong></div><div class="workout-count">${s.exercises.filter(e=>e.sets.some(st=>st.reps!==''||st.weight!=='')).length} / ${s.exercises.length} ejercicios</div></div>
+      <div class="progressbar"><div style="width:${pct}%"></div></div>
+    </section>
+    <div class="field date-field"><label>Fecha</label><input id="sessionDate" type="date" value="${s.date}"></div>
     <div id="exerciseList">${s.exercises.map((e,i)=>exerciseHTML(e,i)).join('')}</div>
-    <section class="card"><h3 style="margin-top:0">Sesión</h3><div class="field"><label>Sensación general</label><select id="overallFeeling"><option value="">Seleccionar</option>${['Excelente','Bien','Normal','Pesada','Muy pesada','Molestia'].map(v=>`<option ${s.overallFeeling===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Notas generales</label><textarea id="sessionNotes">${esc(s.notes)}</textarea></div></section>
-    <div class="save-actions"><button class="btn primary block" data-action="save-session">Guardar entrenamiento</button></div>
+    <section class="card session-card"><div class="section-kicker">Cierre</div><h3>Sesión</h3><div class="field"><label>Sensación general</label><select id="overallFeeling"><option value="">Seleccionar</option>${['Excelente','Bien','Normal','Pesada','Muy pesada','Molestia'].map(v=>`<option ${s.overallFeeling===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Notas generales</label><textarea id="sessionNotes" placeholder="Resumen del entrenamiento…">${esc(s.notes)}</textarea></div></section>
+    <div class="save-actions"><button class="btn primary block save-workout-btn" data-action="save-session">Guardar entrenamiento</button></div>
   </main>`;
   bindWorkoutEvents();
 }
 function exerciseHTML(e,i){
   const alts=replacementOptions(e.name); const group=EXERCISE_META[e.name]?.group||'';
-  return `<section class="card exercise" data-ex="${i}"><div class="exercise-head"><div><h3>${i+1}. ${esc(e.name)}</h3>${group?`<div class="muscle-tag">${esc(group)}</div>`:''}<div class="previous">Último registro: ${esc(e.previous||e.seed)}</div></div></div>
-    ${alts.length?`<div class="swap-wrap"><div class="field"><label>Cambiar por otro ejercicio de la misma zona</label><div class="swap-row"><select data-swap-select="${i}"><option value="">Seleccionar alternativa</option>${alts.map(a=>`<option value="${esc(a.name)}">${esc(a.name)}</option>`).join('')}</select><button class="btn ghost" data-swap-exercise="${i}">Cambiar</button></div></div></div>`:''}
+  return `<section class="card exercise" data-ex="${i}">
+    <div class="exercise-head">
+      <div class="exercise-number">${i+1}</div>
+      <div class="exercise-title-wrap"><h3>${esc(e.name)}</h3>${group?`<div class="muscle-tag">${esc(group)}</div>`:''}</div>
+    </div>
+    <div class="previous-panel"><span>Último registro</span><strong>${esc(e.previous||e.seed)}</strong></div>
+    ${alts.length?`<details class="swap-details"><summary>Cambiar ejercicio</summary><div class="swap-wrap"><div class="swap-row"><select data-swap-select="${i}"><option value="">Alternativa de la misma zona</option>${alts.map(a=>`<option value="${esc(a.name)}">${esc(a.name)}</option>`).join('')}</select><button class="btn ghost compact" data-swap-exercise="${i}">Cambiar</button></div></div></details>`:''}
     <div class="set-head"><span>Serie</span><span>Peso</span><span>Reps</span><span>RIR</span><span></span></div>
     <div class="sets">${e.sets.map((st,j)=>setRowHTML(st,i,j)).join('')}</div>
-    <div class="exercise-footer"><button class="btn ghost" data-add-set="${i}">+ Serie</button></div>
-    <div class="form-grid"><div class="field"><label>Sensaciones</label><select data-feeling="${i}"><option value="">Seleccionar</option>${['Muy ligero','Bien','Normal','Pesado','Muy pesado','Molestia'].map(v=>`<option ${e.feeling===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Notas</label><textarea data-notes="${i}" placeholder="Técnica, molestias, ajustes…">${esc(e.notes)}</textarea></div></div></section>`;
+    <div class="exercise-footer"><button class="btn ghost compact" data-add-set="${i}">+ Añadir serie</button></div>
+    <div class="exercise-meta-grid"><div class="field"><label>Sensaciones</label><select data-feeling="${i}"><option value="">Seleccionar</option>${['Muy ligero','Bien','Normal','Pesado','Muy pesado','Molestia'].map(v=>`<option ${e.feeling===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Notas</label><textarea data-notes="${i}" placeholder="Técnica, molestias, ajustes…">${esc(e.notes)}</textarea></div></div>
+  </section>`;
 }
 function setRowHTML(st,ei,si){
   return `<div class="set-row" data-set="${si}"><span class="set-num">${si+1}</span><div class="row" style="gap:4px"><input inputmode="decimal" placeholder="0" value="${esc(st.weight)}" data-k="weight" data-ei="${ei}" data-si="${si}"><select data-k="unit" data-ei="${ei}" data-si="${si}"><option ${st.unit==='kg'?'selected':''}>kg</option><option ${st.unit==='lb'?'selected':''}>lb</option></select></div><input inputmode="numeric" placeholder="0" value="${esc(st.reps)}" data-k="reps" data-ei="${ei}" data-si="${si}"><input inputmode="numeric" placeholder="0" value="${esc(st.rir)}" data-k="rir" data-ei="${ei}" data-si="${si}"><button class="icon-btn" data-remove-set="${ei}:${si}" aria-label="Eliminar serie">×</button></div>`;
@@ -510,17 +520,23 @@ async function showMeasurement(id){
 
 async function progressHTML(){
   const measures=(await getAll(STORE_MEASUREMENTS)).sort((a,b)=>a.date.localeCompare(b.date)); const selected='weight';
-  return `<main class="screen"><div class="topbar"><div><div class="subtle">Tendencias</div><h1>Progreso</h1></div></div>
-    <section class="card"><div class="field"><label>Medición</label><select id="metricSelect">${MEASURE_FIELDS.map(([k,l])=>`<option value="${k}" ${k===selected?'selected':''}>${l}</option>`).join('')}</select></div></section>
-    <div id="chartArea">${chartHTML(measures,selected)}</div>
-    <div class="section-title"><h2>Ejercicios</h2></div><section class="card"><div class="field"><label>Ejercicio</label><select id="exerciseSelect"><option value="">Seleccionar</option>${[...new Set(Object.values(ROUTINES).flat().map(x=>x[0]))].sort().map(n=>`<option>${esc(n)}</option>`).join('')}</select></div><div id="exerciseProgress" class="subtle">Selecciona un ejercicio para ver sus últimas sesiones.</div></section>
+  const pts=measures.map(m=>({date:m.date,val:num(m.weight)})).filter(x=>x.val!==null);
+  const latest=pts.at(-1), previous=pts.at(-2); const delta=latest&&previous?latest.val-previous.val:null;
+  return `<main class="screen"><div class="topbar"><div><div class="subtle eyebrow">Tendencias</div><h1>Progreso</h1></div></div>
+    <div class="progress-stats">
+      <div class="progress-stat"><span>Peso actual</span><strong>${latest?`${round(latest.val,1)} kg`:'—'}</strong><small>${latest?fmtDate(latest.date):'Sin datos'}</small></div>
+      <div class="progress-stat"><span>Último cambio</span><strong class="${delta===null?'':delta<=0?'good-delta':'neutral-delta'}">${delta===null?'—':`${delta>0?'+':''}${round(delta,1)} kg`}</strong><small>${previous?'vs. medición anterior':'Necesitas 2 registros'}</small></div>
+    </div>
+    <section class="card chart-card"><div class="field"><label>Medición</label><select id="metricSelect">${MEASURE_FIELDS.map(([k,l])=>`<option value="${k}" ${k===selected?'selected':''}>${l}</option>`).join('')}</select></div><div id="chartArea">${chartHTML(measures,selected)}</div></section>
+    <div class="section-title"><h2>Rendimiento</h2></div><section class="card"><div class="field"><label>Ejercicio</label><select id="exerciseSelect"><option value="">Seleccionar ejercicio</option>${[...new Set(Object.values(ROUTINES).flat().map(x=>x[0]))].sort().map(n=>`<option>${esc(n)}</option>`).join('')}</select></div><div id="exerciseProgress" class="subtle exercise-progress-placeholder">Selecciona un ejercicio para ver sus últimas sesiones.</div></section>
   </main>`;
 }
 function chartHTML(data,key){
   const pts=data.map(d=>({date:d.date,val:num(d[key])})).filter(x=>x.val!==null); if(pts.length<2) return '<div class="empty">Registra al menos dos mediciones para generar una gráfica.</div>';
-  const vals=pts.map(p=>p.val), min=Math.min(...vals), max=Math.max(...vals), span=(max-min)||1; const w=600,h=220,pad=30;
-  const xy=pts.map((p,i)=>({x:pad+(i/(pts.length-1))*(w-pad*2),y:h-pad-((p.val-min)/span)*(h-pad*2),...p})); const path=xy.map((p,i)=>`${i?'L':'M'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-  return `<div class="chart-wrap"><svg viewBox="0 0 ${w} ${h}" class="chart-svg" role="img"><line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" class="chart-axis"/><path d="${path}" class="chart-line"/>${xy.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="4" class="chart-dot"/><text x="${p.x}" y="${Math.max(12,p.y-9)}" text-anchor="middle" class="chart-label">${p.val}</text>${(i===0||i===xy.length-1)?`<text x="${p.x}" y="${h-7}" text-anchor="middle" class="chart-label">${p.date.slice(5)}</text>`:''}`).join('')}</svg></div>`;
+  const vals=pts.map(p=>p.val), min=Math.min(...vals), max=Math.max(...vals), rawSpan=(max-min)||1, margin=rawSpan*.18, lo=min-margin, hi=max+margin, span=hi-lo; const w=640,h=250,padX=34,padTop=25,padBottom=34;
+  const xy=pts.map((p,i)=>({x:padX+(i/(pts.length-1))*(w-padX*2),y:padTop+((hi-p.val)/span)*(h-padTop-padBottom),...p})); const path=xy.map((p,i)=>`${i?'L':'M'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' '); const area=`${path} L ${xy.at(-1).x.toFixed(1)} ${h-padBottom} L ${xy[0].x.toFixed(1)} ${h-padBottom} Z`;
+  const grid=[0,.5,1].map(t=>{const y=padTop+t*(h-padTop-padBottom);return `<line x1="${padX}" y1="${y}" x2="${w-padX}" y2="${y}" class="chart-grid"/>`}).join('');
+  return `<div class="chart-wrap premium-chart"><svg viewBox="0 0 ${w} ${h}" class="chart-svg" role="img"><defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5c7cfa" stop-opacity=".22"/><stop offset="100%" stop-color="#5c7cfa" stop-opacity="0"/></linearGradient></defs>${grid}<path d="${area}" class="chart-area"/><path d="${path}" class="chart-line"/>${xy.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="${i===xy.length-1?5:3.5}" class="chart-dot"/>${(i===0||i===xy.length-1)?`<text x="${p.x}" y="${Math.max(14,p.y-11)}" text-anchor="middle" class="chart-label chart-value">${p.val}</text><text x="${p.x}" y="${h-8}" text-anchor="middle" class="chart-label">${p.date.slice(5)}</text>`:''}`).join('')}</svg></div>`;
 }
 async function renderExerciseProgress(name){
   const box=document.getElementById('exerciseProgress'); if(!name){box.textContent='Selecciona un ejercicio para ver sus últimas sesiones.';return;}
@@ -563,8 +579,8 @@ async function getNutritionGoal(){
 }
 function macroPct(value,target){ if(!target) return 0; return Math.max(0,Math.min(100,(value/target)*100)); }
 function macroBar(label,value,target,unit){
-  const remain=(+target||0)-(+value||0);
-  return `<div class="macro-row"><div class="row between"><strong>${label}</strong><span>${round(value)} / ${round(target)} ${unit}</span></div><div class="macro-track"><div style="width:${macroPct(value,target)}%"></div></div><div class="subtle">${remain>=0?'Restan':'Exceso'} ${round(Math.abs(remain))} ${unit}</div></div>`;
+  const remain=(+target||0)-(+value||0); const pct=macroPct(value,target);
+  return `<div class="macro-card"><div class="row between"><div><span class="macro-label">${label}</span><strong>${round(value)} <small>${unit}</small></strong></div><div class="macro-remain ${remain<0?'over':''}">${remain>=0?'Faltan':'Exceso'}<b>${round(Math.abs(remain))} ${unit}</b></div></div><div class="macro-track"><div style="width:${pct}%"></div></div><div class="macro-target">Objetivo ${round(target)} ${unit}</div></div>`;
 }
 async function foodHTML(){
   if(foodScreen==='picker') return foodPickerHTML();
@@ -578,19 +594,21 @@ async function foodHTML(){
   return `<main class="screen"><div class="topbar"><div><div class="subtle">Calorías y macros</div><h1>Comida</h1></div><span class="status ok">● Local</span></div>${tabs}${body}</main>`;
 }
 async function foodTodayHTML(){
-  const day=await getFoodDay(foodSelectedDate,true); const totals=foodDayTotals(day); const goal=await getNutritionGoal(); const templates=await getAll(STORE_FOOD_TEMPLATES);
+  const day=await getFoodDay(foodSelectedDate,true); const totals=foodDayTotals(day); const goal=await getNutritionGoal(); const templates=await getAll(STORE_FOOD_TEMPLATES); const calPct=Math.min(100,macroPct(totals.kcal,goal.targetCalories)); const calRemain=goal.targetCalories-totals.kcal;
   return `<div class="date-nav"><button class="icon-btn date-btn" data-food-date="-1">‹</button><div><strong>${foodSelectedDate===today()?'HOY':fmtDate(foodSelectedDate)}</strong><input id="foodDateInput" type="date" value="${foodSelectedDate}"></div><button class="icon-btn date-btn" data-food-date="1">›</button></div>
-    <section class="card nutrition-summary"><div class="summary-cal"><span class="subtle">Calorías</span><strong>${round(totals.kcal)} / ${round(goal.targetCalories)}</strong><small>kcal</small></div>
-      ${macroBar('Proteína',totals.protein,goal.protein,'g')}${macroBar('Grasa',totals.fat,goal.fat,'g')}${macroBar('Carbohidratos',totals.carbs,goal.carbs,'g')}
+    <section class="card nutrition-summary premium-nutrition">
+      <div class="calorie-ring" style="--pct:${calPct}%"><div><strong>${round(totals.kcal)}</strong><span>de ${round(goal.targetCalories)}</span><small>kcal</small></div></div>
+      <div class="nutrition-copy"><div class="section-kicker">Calorías de hoy</div><h2>${calRemain>=0?`${round(calRemain)} kcal restantes`:`${round(Math.abs(calRemain))} kcal sobre objetivo`}</h2><p class="subtle">Registra tus alimentos y Fit Log ajusta el resumen automáticamente.</p></div>
     </section>
+    <div class="macro-grid">${macroBar('Proteína',totals.protein,goal.protein,'g')}${macroBar('Grasa',totals.fat,goal.fat,'g')}${macroBar('Carbohidratos',totals.carbs,goal.carbs,'g')}</div>
     ${day.meals.map((meal,mi)=>mealHTML(meal,mi)).join('')}
-    <section class="card"><div class="row between"><div><strong>Plantillas</strong><div class="subtle">Guarda un día frecuente o cárgalo de nuevo.</div></div><button class="btn ghost" data-save-food-template>Guardar día</button></div>
+    <section class="card template-card"><div class="row between"><div><div class="section-kicker">Atajos</div><strong>Plantillas</strong><div class="subtle">Guarda un día frecuente o cárgalo de nuevo.</div></div><button class="btn ghost compact" data-save-food-template>Guardar día</button></div>
       ${templates.length?`<div class="template-list">${templates.map(t=>`<button class="chip template-chip" data-load-food-template="${t.id}">${esc(t.name)}</button>`).join('')}</div>`:'<div class="subtle" style="margin-top:10px">Todavía no tienes plantillas.</div>'}
     </section>`;
 }
 function mealHTML(meal,mi){
   const mt=meal.items.reduce((a,b)=>sumMacros(a,b),emptyMacros());
-  return `<section class="card meal-card"><div class="row between"><div><h3>${esc(meal.name)}</h3><div class="subtle">${round(mt.kcal)} kcal · P ${round(mt.protein)} · G ${round(mt.fat)} · C ${round(mt.carbs)}</div></div><button class="btn primary compact" data-add-food="${mi}">+ Agregar</button></div>
+  return `<section class="card meal-card meal-${mi}"><div class="row between meal-header"><div><div class="section-kicker">Comida ${mi+1}</div><h3>${esc(meal.name)}</h3><div class="subtle">${round(mt.kcal)} kcal · P ${round(mt.protein)} · G ${round(mt.fat)} · C ${round(mt.carbs)}</div></div><button class="btn primary compact" data-add-food="${mi}">+ Agregar</button></div>
     ${meal.items.length?`<div class="food-items">${meal.items.map((item,ii)=>`<div class="food-item"><button class="food-item-main" data-edit-food-item="${mi}:${ii}"><strong>${esc(item.name)}</strong><span>${round(item.qty,2)} ${esc(item.unit)} · ${round(item.kcal)} kcal</span><small>P ${round(item.protein)} · G ${round(item.fat)} · C ${round(item.carbs)}</small></button><button class="icon-btn danger-text" data-remove-food-item="${mi}:${ii}" aria-label="Eliminar">×</button></div>`).join('')}</div>`:'<div class="subtle meal-empty">Sin alimentos registrados.</div>'}
     <button class="btn ghost compact copy-meal" data-copy-yesterday="${mi}">Copiar de ayer</button>
   </section>`;
