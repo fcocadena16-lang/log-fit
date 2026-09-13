@@ -56,6 +56,53 @@ const ROUTINES = {
   ]
 };
 
+
+
+const EXERCISE_META = {
+  'Press inclinado con barra': {group:'Pecho · press'},
+  'Press inclinado mancuernas': {group:'Pecho · press'},
+  'Chest-supported row': {group:'Espalda · remo'},
+  'Remo mancuerna banco inclinado': {group:'Espalda · remo'},
+  'Pec deck fly': {group:'Pecho · apertura'},
+  'Lat pulldown agarre abierto': {group:'Espalda · jalón'},
+  'Neutral-grip pulldown': {group:'Espalda · jalón'},
+  'Laterales mancuerna': {group:'Hombro lateral'},
+  'Laterales cable': {group:'Hombro lateral'},
+  'Reverse fly máquina': {group:'Hombro posterior'},
+  'Reverse fly cable': {group:'Hombro posterior'},
+  'Incline curl sentado': {group:'Bíceps'},
+  'Curl barra Z parado': {group:'Bíceps'},
+  'Overhead triceps': {group:'Tríceps'},
+  'Skullcrusher barra Z': {group:'Tríceps'},
+  'Shrugs': {group:'Trapecio'},
+  'Wrist curl': {group:'Antebrazo · flexión'},
+  'Wrist extension': {group:'Antebrazo · extensión'},
+  'Leg extension': {group:'Cuádriceps · extensión'},
+  'Hack squat': {group:'Cuádriceps · sentadilla'},
+  'RDL': {group:'Isquios · bisagra'},
+  'Seated leg curl': {group:'Isquios · curl'},
+  'Lying leg curl': {group:'Isquios · curl'},
+  'Aducción': {group:'Aductores'},
+  'Abducción': {group:'Abductores'},
+  'Pantorrilla': {group:'Pantorrilla'},
+  'Cable crunch': {group:'Abdomen'}
+};
+
+function exerciseCatalog(){
+  const map = new Map();
+  for(const routine of Object.values(ROUTINES)){
+    for(const [name,unit,setCount,seed] of routine){
+      if(!map.has(name)) map.set(name,{name,unit,setCount,seed,group:EXERCISE_META[name]?.group||'Otro'});
+    }
+  }
+  return [...map.values()];
+}
+function replacementOptions(name){
+  const group=EXERCISE_META[name]?.group;
+  if(!group) return [];
+  return exerciseCatalog().filter(x=>x.group===group && x.name!==name);
+}
+
 const MEASURE_FIELDS = [
   ['weight','Peso','kg'],
   ['armRelaxed','Brazo relajado','cm'],
@@ -95,12 +142,125 @@ async function put(store,obj){ const s=await tx(store,'readwrite'); return new P
 async function getAll(store){ const s=await tx(store); return new Promise((res,rej)=>{const r=s.getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)}); }
 async function getOne(store,id){ const s=await tx(store); return new Promise((res,rej)=>{const r=s.get(id);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}); }
 async function del(store,id){ const s=await tx(store,'readwrite'); return new Promise((res,rej)=>{const r=s.delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)}); }
+async function putMany(store,items){
+  if(!Array.isArray(items) || !items.length) return;
+  const db=await openDB();
+  return new Promise((res,rej)=>{
+    const transaction=db.transaction(store,'readwrite');
+    const objectStore=transaction.objectStore(store);
+    for(const item of items) objectStore.put(item);
+    transaction.oncomplete=()=>res();
+    transaction.onerror=()=>rej(transaction.error||new Error('No se pudo importar el respaldo.'));
+    transaction.onabort=()=>rej(transaction.error||new Error('La importación fue cancelada.'));
+  });
+}
 
 const esc = s => String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const today = () => new Date().toISOString().slice(0,10);
 const uid = prefix => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
 function fmtDate(v){ if(!v) return ''; const [y,m,d]=v.slice(0,10).split('-'); return `${d}/${m}/${y}`; }
 function num(v){ const n=parseFloat(v); return Number.isFinite(n)?n:null; }
+
+function backupFileName(){
+  const stamp=new Date().toISOString().slice(0,10);
+  return `fit-log-respaldo-${stamp}.json`;
+}
+
+async function buildBackup(){
+  const [sessions,measurements,settings]=await Promise.all([
+    getAll(STORE_SESSIONS),
+    getAll(STORE_MEASUREMENTS),
+    getAll(STORE_SETTINGS)
+  ]);
+  return {
+    format:'fit-log-backup',
+    backupVersion:1,
+    app:'Fit Log',
+    exportedAt:new Date().toISOString(),
+    data:{sessions,measurements,settings}
+  };
+}
+
+async function exportBackup(){
+  const msg=document.getElementById('backupMessage');
+  try{
+    const backup=await buildBackup();
+    const json=JSON.stringify(backup,null,2);
+    const fileName=backupFileName();
+    const file=new File([json],fileName,{type:'application/json'});
+
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({
+          title:'Respaldo Fit Log',
+          text:'Respaldo de Fit Log',
+          files:[file]
+        });
+        if(msg) msg.textContent='Respaldo preparado. Guárdalo en Archivos desde la hoja de compartir.';
+        return;
+      }catch(err){
+        if(err?.name==='AbortError'){
+          if(msg) msg.textContent='Exportación cancelada.';
+          return;
+        }
+      }
+    }
+
+    const blob=new Blob([json],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    if(msg) msg.textContent='Respaldo exportado.';
+  }catch(err){
+    console.error(err);
+    if(msg) msg.textContent='No se pudo crear el respaldo.';
+    alert('No se pudo crear el respaldo.');
+  }
+}
+
+function validateBackup(obj){
+  if(!obj || obj.format!=='fit-log-backup' || obj.backupVersion!==1 || !obj.data) throw new Error('El archivo no es un respaldo válido de Fit Log.');
+  for(const key of ['sessions','measurements','settings']){
+    if(!Array.isArray(obj.data[key])) throw new Error('El respaldo está incompleto o dañado.');
+  }
+  return obj;
+}
+
+async function importBackupFile(file){
+  const msg=document.getElementById('backupMessage');
+  try{
+    const text=await file.text();
+    const backup=validateBackup(JSON.parse(text));
+    const sCount=backup.data.sessions.length;
+    const mCount=backup.data.measurements.length;
+    const exported=backup.exportedAt?new Date(backup.exportedAt).toLocaleString('es-MX'):'fecha desconocida';
+    const ok=confirm(`Respaldo: ${exported}
+
+${sCount} entrenamientos
+${mCount} mediciones
+
+Se combinará con los datos actuales. Si existe el mismo registro, se reemplazará por el del respaldo. ¿Continuar?`);
+    if(!ok){ if(msg) msg.textContent='Importación cancelada.'; return; }
+
+    await putMany(STORE_SESSIONS,backup.data.sessions);
+    await putMany(STORE_MEASUREMENTS,backup.data.measurements);
+    await putMany(STORE_SETTINGS,backup.data.settings);
+    if(msg) msg.textContent=`Importación completa: ${sCount} entrenamientos y ${mCount} mediciones.`;
+    alert(`Respaldo restaurado.
+${sCount} entrenamientos
+${mCount} mediciones`);
+    render();
+  }catch(err){
+    console.error(err);
+    if(msg) msg.textContent=err.message||'No se pudo importar el respaldo.';
+    alert(err.message||'No se pudo importar el respaldo.');
+  }
+}
 
 async function latestMeasurement(){
   const all=await getAll(STORE_MEASUREMENTS); return all.sort((a,b)=>b.date.localeCompare(a.date))[0]||null;
@@ -136,6 +296,16 @@ async function homeHTML(){
     <div class="routine-grid">${Object.keys(ROUTINES).map(n=>`<button class="routine-btn" data-routine="${esc(n)}"><strong>${esc(n)}</strong><small>${ROUTINES[n].length} ejercicios</small></button>`).join('')}</div>
     <div class="section-title"><h2>Reciente</h2><button class="btn ghost" data-action="history">Ver todo</button></div>
     ${recent.length?`<div class="list">${recent.map(s=>`<button class="list-item" data-session-id="${s.id}"><strong>${esc(s.routine)}</strong><span class="subtle">${fmtDate(s.date)} · ${s.exercises.length} ejercicios</span></button>`).join('')}</div>`:'<div class="empty">Todavía no hay entrenamientos guardados.</div>'}
+    <div class="section-title"><h2>Respaldo</h2></div>
+    <section class="card">
+      <p class="subtle" style="margin-top:0">Guarda una copia de entrenamientos, mediciones y configuración. El archivo puede restaurarse en este u otro dispositivo.</p>
+      <div class="backup-actions">
+        <button class="btn primary" data-action="export-backup">Exportar respaldo</button>
+        <button class="btn ghost" data-action="import-backup">Importar respaldo</button>
+      </div>
+      <input id="backupFileInput" class="hide" type="file" accept="application/json,.json">
+      <div id="backupMessage" class="subtle" style="margin-top:10px"></div>
+    </section>
   </main>`;
 }
 function trainHTML(){
@@ -148,7 +318,7 @@ async function startRoutine(name){
   const exercises=[];
   for(const [exName,unit,setCount,seed] of ROUTINES[name]){
     const prev=await latestExerciseRecord(exName);
-    exercises.push({name:exName,defaultUnit:unit,seed,previous:prev?formatPrevious(prev):seed,sets:Array.from({length:setCount},(_,i)=>({n:i+1,weight:'',unit,reps:'',rir:''})),feeling:'',notes:''});
+    exercises.push({name:exName,originalName:exName,defaultUnit:unit,seed,previous:prev?formatPrevious(prev):seed,sets:Array.from({length:setCount},(_,i)=>({n:i+1,weight:'',unit,reps:'',rir:''})),feeling:'',notes:''});
   }
   activeSessionDraft={id:uid('session'),date:today(),routine:name,createdAt:Date.now(),overallFeeling:'',notes:'',exercises};
   renderWorkout();
@@ -162,17 +332,20 @@ function renderWorkout(){
   const s=activeSessionDraft; if(!s) return;
   document.getElementById('bottomNav').classList.add('hide');
   document.getElementById('app').innerHTML=`<main class="screen">
-    <div class="topbar"><button class="btn ghost" data-action="close-workout">← Salir</button><div style="text-align:right"><div class="subtle">${fmtDate(s.date)}</div><h1 style="font-size:22px">${esc(s.routine)}</h1></div></div>
+    <div class="topbar"><button class="btn ghost workout-exit" data-action="close-workout">← Salir</button><div style="text-align:right"><div class="subtle">${fmtDate(s.date)}</div><h1 style="font-size:22px">${esc(s.routine)}</h1></div></div>
     <div class="progressbar"><div style="width:${completionPct(s)}%"></div></div>
     <div class="field"><label>Fecha</label><input id="sessionDate" type="date" value="${s.date}"></div>
     <div id="exerciseList">${s.exercises.map((e,i)=>exerciseHTML(e,i)).join('')}</div>
     <section class="card"><h3 style="margin-top:0">Sesión</h3><div class="field"><label>Sensación general</label><select id="overallFeeling"><option value="">Seleccionar</option>${['Excelente','Bien','Normal','Pesada','Muy pesada','Molestia'].map(v=>`<option ${s.overallFeeling===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Notas generales</label><textarea id="sessionNotes">${esc(s.notes)}</textarea></div></section>
-    <div class="sticky-actions"><button class="btn primary block" data-action="save-session">Guardar entrenamiento</button></div>
+    <div class="save-actions"><button class="btn primary block" data-action="save-session">Guardar entrenamiento</button></div>
   </main>`;
   bindWorkoutEvents();
 }
 function exerciseHTML(e,i){
-  return `<section class="card exercise" data-ex="${i}"><div class="exercise-head"><div><h3>${i+1}. ${esc(e.name)}</h3><div class="previous">Último registro: ${esc(e.previous||e.seed)}</div></div></div>
+  const alts=replacementOptions(e.name);
+  const group=EXERCISE_META[e.name]?.group||'';
+  return `<section class="card exercise" data-ex="${i}"><div class="exercise-head"><div><h3>${i+1}. ${esc(e.name)}</h3>${group?`<div class="muscle-tag">${esc(group)}</div>`:''}<div class="previous">Último registro: ${esc(e.previous||e.seed)}</div></div></div>
+    ${alts.length?`<div class="swap-wrap"><div class="field"><label>Cambiar por otro ejercicio de la misma zona</label><div class="swap-row"><select data-swap-select="${i}"><option value="">Seleccionar alternativa</option>${alts.map(a=>`<option value="${esc(a.name)}">${esc(a.name)}</option>`).join('')}</select><button class="btn ghost" data-swap-exercise="${i}">Cambiar</button></div></div></div>`:''}
     <div class="set-head"><span>Serie</span><span>Peso</span><span>Reps</span><span>RIR</span><span></span></div>
     <div class="sets">${e.sets.map((st,j)=>setRowHTML(st,i,j)).join('')}</div>
     <div class="exercise-footer"><button class="btn ghost" data-add-set="${i}">+ Serie</button></div>
@@ -192,8 +365,33 @@ function bindWorkoutEvents(){
   document.querySelectorAll('[data-notes]').forEach(el=>el.addEventListener('input',e=>activeSessionDraft.exercises[+e.target.dataset.notes].notes=e.target.value));
   document.querySelectorAll('[data-add-set]').forEach(b=>b.addEventListener('click',()=>{const i=+b.dataset.addSet;const e=activeSessionDraft.exercises[i];e.sets.push({n:e.sets.length+1,weight:'',unit:e.defaultUnit,reps:'',rir:''});renderWorkout();}));
   document.querySelectorAll('[data-remove-set]').forEach(b=>b.addEventListener('click',()=>{const [ei,si]=b.dataset.removeSet.split(':').map(Number);const e=activeSessionDraft.exercises[ei];if(e.sets.length===1)return;e.sets.splice(si,1);e.sets.forEach((x,n)=>x.n=n+1);renderWorkout();}));
+  document.querySelectorAll('[data-swap-exercise]').forEach(b=>b.addEventListener('click',()=>swapExercise(+b.dataset.swapExercise)));
   document.querySelector('[data-action="save-session"]')?.addEventListener('click',saveSession);
 }
+
+async function swapExercise(index){
+  const select=document.querySelector(`[data-swap-select="${index}"]`);
+  const newName=select?.value;
+  if(!newName) return;
+  const current=activeSessionDraft.exercises[index];
+  const hasData=current.sets.some(st=>st.weight!==''||st.reps!==''||st.rir!=='') || current.feeling || current.notes;
+  if(hasData && !confirm('Este ejercicio ya tiene datos. ¿Cambiarlo y borrar lo registrado en este ejercicio?')) return;
+  const meta=exerciseCatalog().find(x=>x.name===newName);
+  if(!meta) return;
+  const prev=await latestExerciseRecord(newName);
+  activeSessionDraft.exercises[index]={
+    name:newName,
+    originalName:current.originalName||current.name,
+    defaultUnit:meta.unit,
+    seed:meta.seed,
+    previous:prev?formatPrevious(prev):meta.seed,
+    sets:Array.from({length:meta.setCount},(_,i)=>({n:i+1,weight:'',unit:meta.unit,reps:'',rir:''})),
+    feeling:'',
+    notes:''
+  };
+  renderWorkout();
+}
+
 async function saveSession(){
   const hasData=activeSessionDraft.exercises.some(e=>e.sets.some(s=>s.weight!==''||s.reps!==''));
   if(!hasData){alert('Registra al menos una serie antes de guardar.');return;}
@@ -266,6 +464,13 @@ function bindViewEvents(){
   document.querySelectorAll('[data-routine]').forEach(b=>b.addEventListener('click',()=>startRoutine(b.dataset.routine)));
   document.querySelector('[data-action="measure-now"]')?.addEventListener('click',()=>setView('measure'));
   document.querySelector('[data-action="history"]')?.addEventListener('click',()=>setView('history'));
+  document.querySelector('[data-action="export-backup"]')?.addEventListener('click',exportBackup);
+  document.querySelector('[data-action="import-backup"]')?.addEventListener('click',()=>document.getElementById('backupFileInput')?.click());
+  document.getElementById('backupFileInput')?.addEventListener('change',async e=>{
+    const file=e.target.files?.[0];
+    if(file) await importBackupFile(file);
+    e.target.value='';
+  });
   document.getElementById('measureForm')?.addEventListener('submit',e=>{e.preventDefault();saveMeasurement(e.currentTarget)});
   document.querySelectorAll('[data-history-tab]').forEach(b=>b.addEventListener('click',()=>{historyTab=b.dataset.historyTab;render();}));
   document.querySelectorAll('[data-session-id]').forEach(b=>b.addEventListener('click',()=>showSession(b.dataset.sessionId)));
