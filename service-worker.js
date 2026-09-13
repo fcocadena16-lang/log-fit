@@ -1,10 +1,10 @@
 const APP_VERSION = '8.1';
-const CACHE = 'fit-log-shell-v8.1-updater';
+const CACHE = 'fit-log-shell-v9-dashboard';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=8.1',
-  './app.js?v=8.1',
+  './styles.css?v=9.0',
+  './app.js?v=9.0',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png'

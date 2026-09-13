@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '8.1';
+const APP_VERSION = '9.0';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -324,93 +324,105 @@ async function render(){
 }
 
 async function homeHTML(){
-  const m=await latestMeasurement();
-  const sessions=await getAll(STORE_SESSIONS);
-  const recent=sessions.sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt).slice(0,3);
+  const measurements=(await getAll(STORE_MEASUREMENTS)).sort((a,b)=>a.date.localeCompare(b.date)||a.createdAt-b.createdAt);
+  const m=measurements.at(-1)||null;
+  const prevM=measurements.at(-2)||null;
+  const sessions=(await getAll(STORE_SESSIONS)).sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt);
+  const recent=sessions.slice(0,3);
+  const weekStart=addDays(today(),-6);
+  const weekSessions=sessions.filter(s=>s.date>=weekStart && s.date<=today()).length;
   const day=await getFoodDay(today(),false);
   const totals=day?foodDayTotals(day):emptyMacros();
   const goal=await getNutritionGoal();
-  const kcalPct=goal.targetCalories?Math.min(100,round((totals.kcal/goal.targetCalories)*100)):0;
-  return `<main class="screen home-screen">
-    <div class="topbar home-topbar">
+  const kcalPct=goal.targetCalories?Math.min(100,Math.max(0,round((totals.kcal/goal.targetCalories)*100))):0;
+  const kcalRemain=round((+goal.targetCalories||0)-totals.kcal);
+  const proteinPct=goal.protein?Math.min(100,Math.max(0,round((totals.protein/goal.protein)*100))):0;
+  const fatPct=goal.fat?Math.min(100,Math.max(0,round((totals.fat/goal.fat)*100))):0;
+  const carbsPct=goal.carbs?Math.min(100,Math.max(0,round((totals.carbs/goal.carbs)*100))):0;
+  const weightDelta=(m?.weight && prevM?.weight)?round((+m.weight)-(+prevM.weight),1):null;
+  const firstWeight=measurements.find(x=>num(x.weight)!==null);
+  const totalWeightDelta=(m?.weight && firstWeight?.weight)?round((+m.weight)-(+firstWeight.weight),1):null;
+  const daysSinceMeasure=m?.date?Math.max(0,Math.floor((new Date(today()+'T12:00:00')-new Date(m.date+'T12:00:00'))/86400000)):null;
+  const dateLabel=new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
+  const niceDate=dateLabel.charAt(0).toUpperCase()+dateLabel.slice(1);
+  return `<main class="screen home-screen dashboard-home">
+    <header class="dashboard-header">
       <div>
-        <div class="subtle eyebrow">Registro personal</div>
+        <div class="dashboard-date">${esc(niceDate)}</div>
         <h1>Fit Log</h1>
       </div>
-      <button class="icon-btn icon-square" data-action="open-settings" aria-label="Ajustes">⋯</button>
-    </div>
+      <button class="icon-btn app-menu-btn" data-action="open-settings" aria-label="Ajustes">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+      </button>
+    </header>
 
-    <section class="card hero soft-gradient">
-      <div class="hero-header">
-        <div>
-          <div class="subtle">Resumen de hoy</div>
-          <h2 class="hero-title">Todo tu progreso en un solo lugar</h2>
+    <section class="weight-hero">
+      <div class="weight-hero-copy">
+        <span class="dashboard-kicker">Peso actual</span>
+        <div class="weight-main"><strong>${m?.weight??'—'}</strong><span>${m?.weight?'kg':''}</span></div>
+        <div class="weight-meta">
+          ${weightDelta!==null?`<span class="trend-pill ${weightDelta<=0?'trend-down':'trend-up'}">${weightDelta>0?'+':''}${weightDelta} kg vs. anterior</span>`:'<span class="trend-pill">Sin comparación aún</span>'}
+          ${totalWeightDelta!==null?`<span>${totalWeightDelta>0?'+':''}${totalWeightDelta} kg desde inicio</span>`:''}
         </div>
-        <span class="status status-pill ok">● Local</span>
       </div>
-      <div class="hero-grid hero-grid-4">
-        <div class="metric">
-          <span class="subtle">Peso</span>
-          <strong>${m?.weight??'—'}${m?.weight?' kg':''}</strong>
-          <small>${m?.date?`Última: ${fmtDate(m.date)}`:'Sin medición guardada'}</small>
-        </div>
-        <div class="metric">
-          <span class="subtle">Cintura</span>
-          <strong>${m?.waistMin??'—'}${m?.waistMin?' cm':''}</strong>
-          <small>${m?.date?'Última medición':'Agrega tu primera medición'}</small>
-        </div>
-        <button class="metric metric-action" data-action="food-now">
-          <span class="subtle">Comida</span>
-          <strong>${round(totals.kcal)} / ${round(goal.targetCalories)}</strong>
-          <small>${kcalPct}% del objetivo diario</small>
-        </button>
-        <button class="metric metric-action" data-action="measure-now">
-          <span class="subtle">Mediciones</span>
-          <strong>${m?.date?fmtDate(m.date):'Registrar'}</strong>
-          <small>${m?.date?'Abrir y actualizar':'Agregar ahora'}</small>
-        </button>
-      </div>
+      <button class="weight-hero-side" data-action="progress-now">
+        <span>Progreso</span>
+        <strong>${m?.waistMin?`${m.waistMin} cm`:'Ver'}</strong>
+        <small>${m?.waistMin?'cintura actual':'tendencias'}</small>
+        <span class="card-arrow">↗</span>
+      </button>
     </section>
 
-    <div class="section-title">
-      <h2>Entrenar</h2>
-      <button class="btn ghost compact" data-action="measure-now">+ Medición</button>
-    </div>
-    <div class="routine-grid">${Object.keys(ROUTINES).map(n=>`<button class="routine-btn" data-routine="${esc(n)}"><strong>${esc(n)}</strong><small>${ROUTINES[n].length} ejercicios</small></button>`).join('')}</div>
+    <div class="dashboard-section-head"><h2>Hoy</h2><span class="status mini-status ok">● Local</span></div>
+    <div class="bento-grid">
+      <button class="dash-card dash-training" data-action="train-now">
+        <div class="dash-card-top"><span class="dash-icon"><svg viewBox="0 0 24 24"><path d="M5 8v8M8 6v12M16 6v12M19 8v8M8 12h8M3 10v4M21 10v4"/></svg></span><span class="card-arrow">→</span></div>
+        <div><span class="dashboard-kicker">Entrenamiento</span><h3>${Math.min(weekSessions,4)} de 4</h3><p>sesiones en los últimos 7 días</p></div>
+        <div class="week-dots">${Array.from({length:4},(_,i)=>`<i class="${i<Math.min(weekSessions,4)?'done':''}"></i>`).join('')}</div>
+      </button>
 
-    <div class="section-title">
-      <h2>Reciente</h2>
-      <button class="btn ghost compact" data-action="history">Ver todo</button>
+      <button class="dash-card dash-food" data-action="food-now">
+        <div class="dash-card-top"><span class="dash-icon"><svg viewBox="0 0 24 24"><path d="M7 3v7M4.5 3v5.2A2.8 2.8 0 0 0 7.3 11H8.5V3M7 11v10M16 3v18M16 3c3 2.3 4 5.2 4 8h-4"/></svg></span><span class="card-arrow">→</span></div>
+        <div><span class="dashboard-kicker">Comida</span><h3>${round(totals.kcal)}</h3><p>de ${round(goal.targetCalories)} kcal</p></div>
+        <div class="mini-progress"><i style="width:${kcalPct}%"></i></div>
+        <small>${kcalRemain>=0?`${kcalRemain} kcal restantes`:`${Math.abs(kcalRemain)} kcal sobre objetivo`}</small>
+      </button>
+
+      <button class="dash-card dash-measure" data-action="measure-now">
+        <div class="dash-card-top"><span class="dash-icon"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 7v3M11 7v2M14 7v3M17 7v2"/></svg></span><span class="card-arrow">→</span></div>
+        <div><span class="dashboard-kicker">Mediciones</span><h3>${daysSinceMeasure===null?'Registrar':daysSinceMeasure===0?'Hoy':`${daysSinceMeasure} d`}</h3><p>${daysSinceMeasure===null?'sin registro todavía':daysSinceMeasure===0?'última medición':'desde la última medición'}</p></div>
+      </button>
+
+      <button class="dash-card dash-progress" data-action="progress-now">
+        <div class="dash-card-top"><span class="dash-icon"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M7 15l4-4 3 2 5-6"/></svg></span><span class="card-arrow">→</span></div>
+        <div><span class="dashboard-kicker">Tendencia</span><h3>${totalWeightDelta===null?'—':`${totalWeightDelta>0?'+':''}${totalWeightDelta} kg`}</h3><p>cambio total de peso</p></div>
+      </button>
     </div>
-    ${recent.length?`<div class="list">${recent.map(s=>`<button class="list-item" data-session-id="${s.id}"><strong>${esc(s.routine)}</strong><span class="subtle">${fmtDate(s.date)} · ${s.exercises.length} ejercicios</span></button>`).join('')}</div>`:'<div class="empty">Todavía no hay entrenamientos guardados.</div>'}
+
+    <section class="dashboard-macros">
+      <div class="dashboard-section-head inside"><div><span class="dashboard-kicker">Nutrición</span><h2>Macros de hoy</h2></div><button class="text-link" data-action="food-now">Abrir comida</button></div>
+      <div class="macro-dashboard-row"><span>Proteína</span><div><i style="width:${proteinPct}%"></i></div><strong>${round(totals.protein)} / ${round(goal.protein)} g</strong></div>
+      <div class="macro-dashboard-row"><span>Grasa</span><div><i style="width:${fatPct}%"></i></div><strong>${round(totals.fat)} / ${round(goal.fat)} g</strong></div>
+      <div class="macro-dashboard-row"><span>Carbos</span><div><i style="width:${carbsPct}%"></i></div><strong>${round(totals.carbs)} / ${round(goal.carbs)} g</strong></div>
+    </section>
+
+    <div class="dashboard-section-head"><h2>Últimos entrenamientos</h2><button class="text-link" data-action="history">Ver todo</button></div>
+    ${recent.length?`<div class="timeline-list">${recent.map((s,i)=>`<button class="timeline-item" data-session-id="${s.id}"><span class="timeline-dot ${i===0?'current':''}"></span><span class="timeline-copy"><strong>${esc(s.routine)}</strong><small>${fmtDate(s.date)} · ${s.exercises.length} ejercicios</small></span><span class="card-arrow">›</span></button>`).join('')}</div>`:'<div class="dashboard-empty">Tu historial aparecerá aquí después del primer entrenamiento.</div>'}
 
     <div id="settingsSheet" class="sheet-backdrop hide" aria-hidden="true">
       <div class="sheet">
         <div class="sheet-handle"></div>
         <div class="sheet-header">
-          <div>
-            <div class="subtle">Herramientas</div>
-            <h3>Ajustes</h3>
-          </div>
+          <div><div class="subtle">Fit Log</div><h3>Ajustes</h3></div>
           <button class="icon-btn icon-square" data-action="close-settings" aria-label="Cerrar">✕</button>
         </div>
         <section class="card sheet-card update-card">
-          <div class="row between update-version-row">
-            <div>
-              <div class="subtle">Aplicación</div>
-              <h4 style="margin:5px 0 2px;font-size:20px">Actualizaciones</h4>
-            </div>
-            <span class="version-badge">v${APP_VERSION}</span>
-          </div>
+          <div class="row between update-version-row"><div><div class="subtle">Aplicación</div><h4 style="margin:5px 0 2px;font-size:20px">Actualizaciones</h4></div><span class="version-badge">v${APP_VERSION}</span></div>
           <p id="updateStatus" class="subtle" style="margin:10px 0 12px">Versión instalada: ${APP_VERSION}</p>
-          <div class="update-actions">
-            <button class="btn ghost" data-action="check-update">Buscar actualización</button>
-            <button id="applyUpdateBtn" class="btn primary hide" data-action="apply-update">Actualizar ahora</button>
-          </div>
+          <div class="update-actions"><button class="btn ghost" data-action="check-update">Buscar actualización</button><button id="applyUpdateBtn" class="btn primary hide" data-action="apply-update">Actualizar ahora</button></div>
         </section>
         <section class="card sheet-card">
-          <div class="subtle">Respaldo</div>
-          <h4 style="margin:6px 0 8px;font-size:20px">Importar y exportar</h4>
+          <div class="subtle">Respaldo</div><h4 style="margin:6px 0 8px;font-size:20px">Importar y exportar</h4>
           <p class="subtle" style="margin-top:0">Guarda o restaura entrenamientos, mediciones, alimentos, objetivos y registros de comida.</p>
           <div class="backup-actions"><button class="btn primary" data-action="export-backup">Exportar respaldo</button><button class="btn ghost" data-action="import-backup">Importar respaldo</button></div>
           <input id="backupFileInput" class="hide" type="file" accept="application/json,.json"><div id="backupMessage" class="subtle" style="margin-top:10px"></div>
@@ -421,9 +433,14 @@ async function homeHTML(){
 }
 
 function trainHTML(){
-  return `<main class="screen"><div class="topbar"><div><div class="subtle">Selecciona tu sesión</div><h1>Entrenar</h1></div></div>
-  <div class="routine-grid">${Object.keys(ROUTINES).map(n=>`<button class="routine-btn" data-routine="${esc(n)}"><strong>${esc(n)}</strong><small>${ROUTINES[n].length} ejercicios</small></button>`).join('')}</div>
-  <div class="notice" style="margin-top:18px">Cada serie guarda peso, repeticiones y RIR. Puedes cambiar ejercicios por otra opción de la misma zona muscular.</div></main>`;
+  return `<main class="screen section-screen train-screen">
+    <div class="section-app-header train-header">
+      <div><span class="dashboard-kicker">Rutina semanal</span><h1>Entrenar</h1><p>Selecciona una sesión. Dentro puedes cambiar un ejercicio por otra opción de la misma zona muscular.</p></div>
+      <div class="section-symbol"><svg viewBox="0 0 24 24"><path d="M5 8v8M8 6v12M16 6v12M19 8v8M8 12h8M3 10v4M21 10v4"/></svg></div>
+    </div>
+    <div class="routine-grid routine-grid-v9">${Object.keys(ROUTINES).map((n,i)=>`<button class="routine-btn routine-v9 routine-tone-${i+1}" data-routine="${esc(n)}"><span class="routine-index">0${i+1}</span><div><strong>${esc(n)}</strong><small>${ROUTINES[n].length} ejercicios</small></div><span class="card-arrow">→</span></button>`).join('')}</div>
+    <div class="info-strip"><span>RIR por serie</span><span>Peso y reps</span><span>Sensaciones</span><span>Historial</span></div>
+  </main>`;
 }
 async function startRoutine(name){
   const exercises=[];
@@ -505,9 +522,13 @@ async function saveSession(){
 
 async function measureHTML(){
   const prev=await latestMeasurement();
-  return `<main class="screen"><div class="topbar"><div><div class="subtle">Registro semanal</div><h1>Mediciones</h1></div></div>
-    ${prev?`<div class="notice">Último registro: ${fmtDate(prev.date)} · ${prev.weight??'—'} kg</div>`:''}
-    <form id="measureForm" class="card"><div class="field"><label>Fecha</label><input name="date" type="date" value="${today()}" required></div><div class="form-grid">${MEASURE_FIELDS.map(([k,l,u])=>`<div class="field"><label>${l} (${u})</label><input name="${k}" inputmode="decimal" type="number" step="0.1" placeholder="${prev?.[k]??''}"></div>`).join('')}</div><div class="field"><label>Notas</label><textarea name="notes" placeholder="Condiciones de medición, observaciones…"></textarea></div><button class="btn primary block" type="submit">Guardar mediciones</button></form>
+  return `<main class="screen section-screen measure-screen">
+    <div class="section-app-header measure-header">
+      <div><span class="dashboard-kicker">Registro semanal</span><h1>Mediciones</h1><p>Guarda tus medidas en las mismas condiciones para comparar tendencias con mayor consistencia.</p></div>
+      <div class="section-symbol"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 7v3M11 7v2M14 7v3M17 7v2"/></svg></div>
+    </div>
+    ${prev?`<section class="last-measure-card"><div><span>Último registro</span><strong>${prev.weight??'—'} kg</strong><small>${fmtDate(prev.date)}</small></div><div><span>Cintura</span><strong>${prev.waistMin??'—'}${prev.waistMin?' cm':''}</strong><small>mínima</small></div></section>`:''}
+    <form id="measureForm" class="card measurement-form"><div class="form-card-title"><span class="dashboard-kicker">Nueva medición</span><h2>Registrar datos</h2></div><div class="field"><label>Fecha</label><input name="date" type="date" value="${today()}" required></div><div class="form-grid">${MEASURE_FIELDS.map(([k,l,u])=>`<div class="field"><label>${l} <span>${u}</span></label><input name="${k}" inputmode="decimal" type="number" step="0.1" placeholder="${prev?.[k]??''}"></div>`).join('')}</div><div class="field"><label>Notas</label><textarea name="notes" placeholder="Condiciones de medición, observaciones…"></textarea></div><button class="btn primary block" type="submit">Guardar mediciones</button></form>
   </main>`;
 }
 async function saveMeasurement(form){
@@ -875,6 +896,8 @@ function bindViewEvents(){
   document.querySelectorAll('[data-routine]').forEach(b=>b.addEventListener('click',()=>startRoutine(b.dataset.routine)));
   document.querySelector('[data-action="measure-now"]')?.addEventListener('click',()=>setView('measure'));
   document.querySelector('[data-action="food-now"]')?.addEventListener('click',()=>setView('food'));
+  document.querySelector('[data-action="train-now"]')?.addEventListener('click',()=>setView('train'));
+  document.querySelectorAll('[data-action="progress-now"]').forEach(b=>b.addEventListener('click',()=>setView('progress')));
   document.querySelector('[data-action="history"]')?.addEventListener('click',()=>{currentView='history';render();});
   document.querySelector('[data-action="history-back"]')?.addEventListener('click',()=>setView('home'));
   const settingsSheet=document.getElementById('settingsSheet');
