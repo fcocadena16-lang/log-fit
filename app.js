@@ -1,5 +1,9 @@
 'use strict';
 
+const APP_VERSION = '8.1';
+let requestedUpdateVersion = null;
+let updateReloadPending = false;
+
 const DB_NAME = 'fit-log-db';
 const DB_VERSION = 2;
 const STORE_SESSIONS = 'sessions';
@@ -390,6 +394,20 @@ async function homeHTML(){
           </div>
           <button class="icon-btn icon-square" data-action="close-settings" aria-label="Cerrar">✕</button>
         </div>
+        <section class="card sheet-card update-card">
+          <div class="row between update-version-row">
+            <div>
+              <div class="subtle">Aplicación</div>
+              <h4 style="margin:5px 0 2px;font-size:20px">Actualizaciones</h4>
+            </div>
+            <span class="version-badge">v${APP_VERSION}</span>
+          </div>
+          <p id="updateStatus" class="subtle" style="margin:10px 0 12px">Versión instalada: ${APP_VERSION}</p>
+          <div class="update-actions">
+            <button class="btn ghost" data-action="check-update">Buscar actualización</button>
+            <button id="applyUpdateBtn" class="btn primary hide" data-action="apply-update">Actualizar ahora</button>
+          </div>
+        </section>
         <section class="card sheet-card">
           <div class="subtle">Respaldo</div>
           <h4 style="margin:6px 0 8px;font-size:20px">Importar y exportar</h4>
@@ -766,6 +784,93 @@ function filterFoodPicker(){
   document.querySelectorAll('.food-pick-item').forEach(el=>{const name=el.dataset.name||''; const matchesQ=!q||name.includes(q); const matchesF=filter==='all'||(filter==='fav'&&el.dataset.fav==='1')||(filter==='recent'&&el.dataset.recent==='1'); el.classList.toggle('hide',!(matchesQ&&matchesF));});
 }
 
+function setUpdateStatus(message, kind=''){
+  const el=document.getElementById('updateStatus');
+  if(!el) return;
+  el.textContent=message;
+  el.classList.toggle('ok',kind==='ok');
+  el.classList.toggle('danger-text',kind==='error');
+}
+function showApplyUpdate(show=true){
+  document.getElementById('applyUpdateBtn')?.classList.toggle('hide',!show);
+}
+async function remoteAppVersion(){
+  const response=await fetch(`./service-worker.js?versionCheck=${Date.now()}`,{cache:'no-store',headers:{'Cache-Control':'no-cache'}});
+  if(!response.ok) throw new Error('No se pudo consultar la versión publicada.');
+  const text=await response.text();
+  const match=text.match(/const APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]/);
+  if(!match) throw new Error('No se pudo leer la versión publicada.');
+  return match[1];
+}
+async function checkForAppUpdate(){
+  showApplyUpdate(false);
+  requestedUpdateVersion=null;
+  if(!navigator.onLine){
+    setUpdateStatus(`Versión instalada: ${APP_VERSION} · Sin conexión para buscar actualizaciones.`,'error');
+    return;
+  }
+  setUpdateStatus('Buscando actualización…');
+  try{
+    const remote=await remoteAppVersion();
+    const reg=await navigator.serviceWorker.getRegistration();
+    if(reg) await reg.update().catch(()=>{});
+    if(remote!==APP_VERSION){
+      requestedUpdateVersion=remote;
+      setUpdateStatus(`Nueva versión disponible: ${remote}`,'ok');
+      showApplyUpdate(true);
+    }else{
+      setUpdateStatus(`Fit Log ${APP_VERSION} está actualizado.`,'ok');
+    }
+  }catch(err){
+    setUpdateStatus(`No se pudo buscar la actualización: ${err.message}`,'error');
+  }
+}
+async function applyAppUpdate(){
+  if(!navigator.onLine){
+    setUpdateStatus('Necesitas conexión para descargar la actualización.','error');
+    return;
+  }
+  const target=requestedUpdateVersion||'nueva';
+  setUpdateStatus(`Descargando versión ${target}…`);
+  const btn=document.getElementById('applyUpdateBtn');
+  if(btn) btn.disabled=true;
+  updateReloadPending=true;
+  try{
+    const reg=await navigator.serviceWorker.getRegistration();
+    if(!reg) throw new Error('No hay service worker registrado.');
+
+    let reloaded=false;
+    const reloadIntoNewVersion=()=>{
+      if(reloaded) return;
+      reloaded=true;
+      const url=new URL(location.href);
+      url.searchParams.set('appVersion',requestedUpdateVersion||Date.now());
+      location.replace(url.toString());
+    };
+
+    navigator.serviceWorker.addEventListener('controllerchange',reloadIntoNewVersion,{once:true});
+    await reg.update();
+
+    if(reg.waiting){
+      reg.waiting.postMessage({type:'SKIP_WAITING'});
+    }else if(reg.installing){
+      const worker=reg.installing;
+      worker.addEventListener('statechange',()=>{
+        if(worker.state==='installed' && reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
+      });
+    }else{
+      // La versión nueva puede haberse activado automáticamente antes de pulsar el botón.
+      setTimeout(reloadIntoNewVersion,500);
+    }
+    // Respaldo para iOS si no llega controllerchange al primer plano.
+    setTimeout(reloadIntoNewVersion,2500);
+  }catch(err){
+    updateReloadPending=false;
+    if(btn) btn.disabled=false;
+    setUpdateStatus(`No se pudo actualizar: ${err.message}`,'error');
+  }
+}
+
 function bindViewEvents(){
   document.querySelectorAll('[data-routine]').forEach(b=>b.addEventListener('click',()=>startRoutine(b.dataset.routine)));
   document.querySelector('[data-action="measure-now"]')?.addEventListener('click',()=>setView('measure'));
@@ -776,6 +881,8 @@ function bindViewEvents(){
   document.querySelector('[data-action="open-settings"]')?.addEventListener('click',()=>settingsSheet?.classList.remove('hide'));
   document.querySelector('[data-action="close-settings"]')?.addEventListener('click',()=>settingsSheet?.classList.add('hide'));
   settingsSheet?.addEventListener('click',e=>{ if(e.target===settingsSheet) settingsSheet.classList.add('hide'); });
+  document.querySelector('[data-action="check-update"]')?.addEventListener('click',checkForAppUpdate);
+  document.querySelector('[data-action="apply-update"]')?.addEventListener('click',applyAppUpdate);
   document.querySelector('[data-action="export-backup"]')?.addEventListener('click',exportBackup);
   document.querySelector('[data-action="import-backup"]')?.addEventListener('click',()=>document.getElementById('backupFileInput')?.click());
   document.getElementById('backupFileInput')?.addEventListener('change',async e=>{const file=e.target.files?.[0];if(file) await importBackupFile(file);e.target.value='';});
@@ -792,5 +899,5 @@ document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>
 window.addEventListener('online',()=>document.querySelectorAll('.status').forEach(x=>x.textContent='● Local + red'));
 window.addEventListener('offline',()=>document.querySelectorAll('.status').forEach(x=>x.textContent='● Local'));
 
-if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(console.error)); }
+if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
 openDB().then(seedStarterFoods).then(render).catch(err=>{document.getElementById('app').innerHTML=`<main class="screen"><div class="card"><h2>Error al abrir la base local</h2><p class="subtle">${esc(err.message)}</p></div></main>`;});

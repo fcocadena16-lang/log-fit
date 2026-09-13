@@ -1,9 +1,10 @@
-const CACHE = 'fit-log-shell-v8-refined';
+const APP_VERSION = '8.1';
+const CACHE = 'fit-log-shell-v8.1-updater';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=8',
-  './app.js?v=8',
+  './styles.css?v=8.1',
+  './app.js?v=8.1',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png'
@@ -18,6 +19,14 @@ self.addEventListener('activate', event => {
     caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
+});
+
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+  if (event.data && event.data.type === 'GET_VERSION' && event.ports && event.ports[0]) {
+    event.ports[0].postMessage({version: APP_VERSION});
+  }
 });
 
 self.addEventListener('fetch', event => {
