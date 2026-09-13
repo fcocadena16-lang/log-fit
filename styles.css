@@ -269,3 +269,31 @@ body{font-size:16px}
 .macro-percent-card strong{display:block;font-size:27px;letter-spacing:-.04em;margin:6px 0 3px;color:var(--ink)}
 .macro-percent-card small{display:block;font-size:12px;color:var(--sub)}
 @media(max-width:520px){.nutrition-controls{grid-template-columns:1fr}.macro-percent-grid{gap:7px}.macro-percent-card{padding:13px 6px}.macro-percent-card strong{font-size:24px}.macro-percent-card span{font-size:11px}}
+
+
+/* v9.4 colores por macro y anillo por comida */
+.ring-legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.ring-legend-item{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border-radius:999px;background:#f7f9fc;border:1px solid var(--line);font-size:12px;color:var(--muted);font-weight:700}
+.ring-legend-item i{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none}
+
+.macro-card{background:var(--macro-bg,var(--panel));border-color:var(--macro-border,var(--line))}
+.macro-card strong{color:var(--macro-color,var(--text))}
+.macro-card .macro-track{background:var(--macro-track-bg,var(--panel2));border-color:var(--macro-border,var(--line))}
+.macro-card .macro-track>div{background:var(--macro-fill,linear-gradient(90deg,var(--accent),#86a0ff))}
+.macro-card .macro-label{color:var(--macro-color,var(--muted))}
+.macro-card .macro-target{color:var(--macro-color-soft,var(--muted))}
+.macro-protein{--macro-bg:#f7f9ff;--macro-border:#dbe4ff;--macro-track-bg:#edf1ff;--macro-fill:linear-gradient(90deg,#5c7cfa,#90a4ff);--macro-color:#4c68de;--macro-color-soft:#7182c3}
+.macro-fat{--macro-bg:#fff8ef;--macro-border:#ffe0b3;--macro-track-bg:#fff1dc;--macro-fill:linear-gradient(90deg,#f4b35e,#f7cc8c);--macro-color:#cc8a34;--macro-color-soft:#b38b55}
+.macro-carbs{--macro-bg:#f2fbf7;--macro-border:#cfeede;--macro-track-bg:#e7f7ef;--macro-fill:linear-gradient(90deg,#4fbf8f,#86ddba);--macro-color:#2b9e72;--macro-color-soft:#5c9c80}
+
+.macro-percent-card:nth-child(1){background:#f7f9ff;border-color:#dbe4ff}
+.macro-percent-card:nth-child(1) strong,.macro-percent-card:nth-child(1) span{color:#4c68de}
+.macro-percent-card:nth-child(2){background:#f2fbf7;border-color:#cfeede}
+.macro-percent-card:nth-child(2) strong,.macro-percent-card:nth-child(2) span{color:#2b9e72}
+.macro-percent-card:nth-child(3){background:#fff8ef;border-color:#ffe0b3}
+.macro-percent-card:nth-child(3) strong,.macro-percent-card:nth-child(3) span{color:#cc8a34}
+
+@media(max-width:620px){
+  .ring-legend{gap:6px}
+  .ring-legend-item{font-size:11px;padding:6px 9px}
+}

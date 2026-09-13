@@ -1,6 +1,6 @@
 {
-  "version": "9.3",
+  "version": "9.4",
   "published": "2026-09-13",
   "name": "Fit Log",
-  "notes": "Nutrición siempre automática: edad simplificada, sin selector manual/automático, resumen compacto y macros en porcentajes separados con guardado automático."
+  "notes": "Colores distintos por macro y anillo de calorías segmentado por comida, con cada comida en un color diferente."
 }

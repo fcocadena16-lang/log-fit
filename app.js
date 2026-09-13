@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '9.3';
+const APP_VERSION = '9.4';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -682,9 +682,33 @@ async function getNutritionGoal(){
   return calculated;
 }
 function macroPct(value,target){ if(!target) return 0; return Math.max(0,Math.min(100,(value/target)*100)); }
-function macroBar(label,value,target,unit){
-  const remain=(+target||0)-(+value||0); const pct=macroPct(value,target);
-  return `<div class="macro-card"><div class="row between"><div><span class="macro-label">${label}</span><strong>${round(value)} <small>${unit}</small></strong></div><div class="macro-remain ${remain<0?'over':''}">${remain>=0?'Faltan':'Exceso'}<b>${round(Math.abs(remain))} ${unit}</b></div></div><div class="macro-track"><div style="width:${pct}%"></div></div><div class="macro-target">Objetivo ${round(target)} ${unit}</div></div>`;
+const MEAL_RING_COLORS=['#5c7cfa','#7bc6b0','#f4b183','#c5a3e6','#f5cf7b','#8ecae6'];
+function mealColor(index){ return MEAL_RING_COLORS[index % MEAL_RING_COLORS.length]; }
+function buildMealRing(day,targetCalories){
+  const target=Math.max(1,+targetCalories||1);
+  let cursor=0;
+  const segments=[];
+  const legend=[];
+  (day?.meals||[]).forEach((meal,mi)=>{
+    const mt=(meal.items||[]).reduce((a,b)=>sumMacros(a,b),emptyMacros());
+    if(mt.kcal>0){
+      const color=mealColor(mi);
+      const pct=Math.max(0,Math.min(100-cursor,(mt.kcal/target)*100));
+      if(pct>0.0001){
+        segments.push(`${color} ${cursor}% ${cursor+pct}%`);
+        cursor+=pct;
+      }
+      legend.push(`<span class="ring-legend-item"><i style="background:${color}"></i>${esc(meal.name)} · ${round(mt.kcal)} kcal</span>`);
+    }
+  });
+  if(cursor<100) segments.push(`#e9edf4 ${cursor}% 100%`);
+  if(!segments.length) segments.push('#e9edf4 0 100%');
+  return { background:`conic-gradient(${segments.join(',')})`, legend:legend.join('') };
+}
+function macroBar(type,label,value,target,unit){
+  const remain=(+target||0)-(+value||0);
+  const pct=macroPct(value,target);
+  return `<div class="macro-card macro-${type}"><div class="row between"><div><span class="macro-label">${label}</span><strong>${round(value)} <small>${unit}</small></strong></div><div class="macro-remain ${remain<0?'over':''}">${remain>=0?'Faltan':'Exceso'}<b>${round(Math.abs(remain))} ${unit}</b></div></div><div class="macro-track"><div style="width:${pct}%"></div></div><div class="macro-target">Objetivo ${round(target)} ${unit}</div></div>`;
 }
 async function foodHTML(){
   if(foodScreen==='picker') return foodPickerHTML();
@@ -698,13 +722,13 @@ async function foodHTML(){
   return `<main class="screen"><div class="topbar"><div><div class="subtle">Calorías y macros</div><h1>Comida</h1></div><span class="status ok">● Local</span></div>${tabs}${body}</main>`;
 }
 async function foodTodayHTML(){
-  const day=await getFoodDay(foodSelectedDate,true); const totals=foodDayTotals(day); const goal=await getNutritionGoal(); const templates=await getAll(STORE_FOOD_TEMPLATES); const calPct=Math.min(100,macroPct(totals.kcal,goal.targetCalories)); const calRemain=goal.targetCalories-totals.kcal;
+  const day=await getFoodDay(foodSelectedDate,true); const totals=foodDayTotals(day); const goal=await getNutritionGoal(); const templates=await getAll(STORE_FOOD_TEMPLATES); const calPct=Math.min(100,macroPct(totals.kcal,goal.targetCalories)); const calRemain=goal.targetCalories-totals.kcal; const ring=buildMealRing(day,goal.targetCalories);
   return `<div class="date-nav"><button class="icon-btn date-btn" data-food-date="-1">‹</button><div><strong>${foodSelectedDate===today()?'HOY':fmtDate(foodSelectedDate)}</strong><input id="foodDateInput" type="date" value="${foodSelectedDate}"></div><button class="icon-btn date-btn" data-food-date="1">›</button></div>
     <section class="card nutrition-summary premium-nutrition">
-      <div class="calorie-ring" style="--pct:${calPct}%"><div><strong>${round(totals.kcal)}</strong><span>de ${round(goal.targetCalories)}</span><small>kcal</small></div></div>
-      <div class="nutrition-copy"><div class="section-kicker">Calorías de hoy</div><h2>${calRemain>=0?`${round(calRemain)} kcal restantes`:`${round(Math.abs(calRemain))} kcal sobre objetivo`}</h2><p class="subtle">Registra tus alimentos y Fit Log ajusta el resumen automáticamente.</p></div>
+      <div class="calorie-ring" style="background:${ring.background}"><div><strong>${round(totals.kcal)}</strong><span>de ${round(goal.targetCalories)}</span><small>kcal</small></div></div>
+      <div class="nutrition-copy"><div class="section-kicker">Calorías de hoy</div><h2>${calRemain>=0?`${round(calRemain)} kcal restantes`:`${round(Math.abs(calRemain))} kcal sobre objetivo`}</h2><p class="subtle">Registra tus alimentos y Fit Log ajusta el resumen automáticamente.</p>${ring.legend?`<div class="ring-legend">${ring.legend}</div>`:''}</div>
     </section>
-    <div class="macro-grid">${macroBar('Proteína',totals.protein,goal.protein,'g')}${macroBar('Grasa',totals.fat,goal.fat,'g')}${macroBar('Carbohidratos',totals.carbs,goal.carbs,'g')}</div>
+    <div class="macro-grid">${macroBar('protein','Proteína',totals.protein,goal.protein,'g')}${macroBar('fat','Grasa',totals.fat,goal.fat,'g')}${macroBar('carbs','Carbohidratos',totals.carbs,goal.carbs,'g')}</div>
     ${day.meals.map((meal,mi)=>mealHTML(meal,mi)).join('')}
     <section class="card template-card"><div class="row between"><div><div class="section-kicker">Atajos</div><strong>Plantillas</strong><div class="subtle">Guarda un día frecuente o cárgalo de nuevo.</div></div><button class="btn ghost compact" data-save-food-template>Guardar día</button></div>
       ${templates.length?`<div class="template-list">${templates.map(t=>`<button class="chip template-chip" data-load-food-template="${t.id}">${esc(t.name)}</button>`).join('')}</div>`:'<div class="subtle" style="margin-top:10px">Todavía no tienes plantillas.</div>'}
