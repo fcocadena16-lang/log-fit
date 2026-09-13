@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#101214" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Fit Log" />
+  <title>Fit Log</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <nav id="bottomNav" class="bottom-nav" aria-label="Navegación principal">
+    <button data-view="home" class="nav-btn active"><span>⌂</span><small>Inicio</small></button>
+    <button data-view="train" class="nav-btn"><span>▣</span><small>Entrenar</small></button>
+    <button data-view="history" class="nav-btn"><span>≡</span><small>Historial</small></button>
+    <button data-view="progress" class="nav-btn"><span>↗</span><small>Progreso</small></button>
+    <button data-view="measure" class="nav-btn"><span>◎</span><small>Medidas</small></button>
+  </nav>
+  <script src="app.js" defer></script>
+</body>
+</html>
