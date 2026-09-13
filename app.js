@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '9.0';
+const APP_VERSION = '9.1';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -816,7 +816,25 @@ function showApplyUpdate(show=true){
   document.getElementById('applyUpdateBtn')?.classList.toggle('hide',!show);
 }
 async function remoteAppVersion(){
-  const response=await fetch(`./service-worker.js?versionCheck=${Date.now()}`,{cache:'no-store',headers:{'Cache-Control':'no-cache'}});
+  // Desde 9.1 la versión publicada vive en un archivo independiente.
+  // Esto evita que el propio caché del service worker o una constante olvidada
+  // impidan detectar una actualización.
+  try{
+    const response=await fetch(`./version.json?versionCheck=${Date.now()}`,{
+      cache:'no-store',
+      headers:{'Cache-Control':'no-cache, no-store, must-revalidate'}
+    });
+    if(response.ok){
+      const data=await response.json();
+      if(data?.version) return String(data.version);
+    }
+  }catch(_){ }
+
+  // Compatibilidad con instalaciones 8.1/9.0 que todavía consultaban el SW.
+  const response=await fetch(`./service-worker.js?versionCheck=${Date.now()}`,{
+    cache:'no-store',
+    headers:{'Cache-Control':'no-cache, no-store, must-revalidate'}
+  });
   if(!response.ok) throw new Error('No se pudo consultar la versión publicada.');
   const text=await response.text();
   const match=text.match(/const APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]/);

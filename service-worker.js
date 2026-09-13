@@ -1,11 +1,12 @@
-const APP_VERSION = '8.1';
-const CACHE = 'fit-log-shell-v9-dashboard';
+const APP_VERSION = '9.1';
+const CACHE = 'fit-log-shell-v9.1-updater-fix';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=9.0',
-  './app.js?v=9.0',
+  './styles.css?v=9.1',
+  './app.js?v=9.1',
   './manifest.json',
+  './version.json',
   './icons/icon-192.png',
   './icons/icon-512.png'
 ];
@@ -33,6 +34,14 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
+
+  // La comprobación de versión debe ir siempre a red cuando sea posible.
+  if (url.pathname.endsWith('/version.json')) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match('./version.json'))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then(cached => {
