@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '9.1';
+const APP_VERSION = '9.2';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -147,6 +147,7 @@ const DEFAULT_NUTRITION = {
   mode:'auto',
   height:176,
   age:34,
+  birthDate:'',
   activity:1.55,
   deficit:20,
   proteinPerKg:2.1,
@@ -298,6 +299,28 @@ async function importBackupFile(file){
 
 async function latestMeasurement(){
   const all=await getAll(STORE_MEASUREMENTS); return all.sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt)[0]||null;
+}
+function ageFromBirthDate(birthDate, referenceDate=today()){
+  if(!birthDate) return null;
+  const b=String(birthDate).slice(0,10).split('-').map(Number);
+  const r=String(referenceDate).slice(0,10).split('-').map(Number);
+  if(b.length!==3||r.length!==3||b.some(x=>!Number.isFinite(x))||r.some(x=>!Number.isFinite(x))) return null;
+  let age=r[0]-b[0];
+  if(r[1]<b[1] || (r[1]===b[1] && r[2]<b[2])) age--;
+  return age>=0 && age<130 ? age : null;
+}
+async function measurementReference(){
+  const all=(await getAll(STORE_MEASUREMENTS)).sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt);
+  const latest=all[0]||null;
+  const firstValue=field=>{
+    const row=all.find(m=>m?.[field]!==undefined && m?.[field]!==null && String(m[field]).trim()!=='');
+    return row ? row[field] : null;
+  };
+  const weight=num(firstValue('weight'));
+  const height=num(firstValue('height'));
+  const birthDate=firstValue('birthDate')||'';
+  const age=ageFromBirthDate(birthDate,today());
+  return {latest,weight,height,birthDate,age};
 }
 async function latestExerciseRecord(name){
   const sessions=(await getAll(STORE_SESSIONS)).sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt);
@@ -521,19 +544,44 @@ async function saveSession(){
 }
 
 async function measureHTML(){
-  const prev=await latestMeasurement();
+  const ref=await measurementReference();
+  const prev=ref.latest;
+  const age=ref.age;
   return `<main class="screen section-screen measure-screen">
     <div class="section-app-header measure-header">
-      <div><span class="dashboard-kicker">Registro semanal</span><h1>Mediciones</h1><p>Guarda tus medidas en las mismas condiciones para comparar tendencias con mayor consistencia.</p></div>
+      <div><span class="dashboard-kicker">Registro semanal</span><h1>Mediciones</h1><p>Tu peso, estatura y fecha de nacimiento alimentan automáticamente el cálculo de calorías cuando el objetivo está en modo automático.</p></div>
       <div class="section-symbol"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 7v3M11 7v2M14 7v3M17 7v2"/></svg></div>
     </div>
-    ${prev?`<section class="last-measure-card"><div><span>Último registro</span><strong>${prev.weight??'—'} kg</strong><small>${fmtDate(prev.date)}</small></div><div><span>Cintura</span><strong>${prev.waistMin??'—'}${prev.waistMin?' cm':''}</strong><small>mínima</small></div></section>`:''}
-    <form id="measureForm" class="card measurement-form"><div class="form-card-title"><span class="dashboard-kicker">Nueva medición</span><h2>Registrar datos</h2></div><div class="field"><label>Fecha</label><input name="date" type="date" value="${today()}" required></div><div class="form-grid">${MEASURE_FIELDS.map(([k,l,u])=>`<div class="field"><label>${l} <span>${u}</span></label><input name="${k}" inputmode="decimal" type="number" step="0.1" placeholder="${prev?.[k]??''}"></div>`).join('')}</div><div class="field"><label>Notas</label><textarea name="notes" placeholder="Condiciones de medición, observaciones…"></textarea></div><button class="btn primary block" type="submit">Guardar mediciones</button></form>
+    ${prev?`<section class="last-measure-card"><div><span>Último registro</span><strong>${prev.weight??'—'}${prev.weight?' kg':''}</strong><small>${fmtDate(prev.date)}</small></div><div><span>Cintura</span><strong>${prev.waistMin??'—'}${prev.waistMin?' cm':''}</strong><small>mínima</small></div></section>`:''}
+    <form id="measureForm" class="card measurement-form">
+      <div class="form-card-title"><span class="dashboard-kicker">Nueva medición</span><h2>Registrar datos</h2></div>
+      <div class="field"><label>Fecha de la medición</label><input name="date" type="date" value="${today()}" required></div>
+      <div class="profile-measure-block">
+        <div class="profile-measure-title"><div><span class="dashboard-kicker">Datos para calorías</span><h3>Referencia personal</h3></div><span class="profile-sync-badge">Automático</span></div>
+        <div class="form-grid profile-measure-grid">
+          <div class="field"><label>Estatura <span>cm</span></label><input name="height" inputmode="decimal" type="number" step="0.1" min="50" max="250" value="${ref.height??''}" placeholder="176"></div>
+          <div class="field"><label>Fecha de nacimiento</label><input id="birthDateInput" name="birthDate" type="date" value="${esc(ref.birthDate)}"></div>
+        </div>
+        <div class="age-display"><span>Edad calculada</span><strong id="calculatedAge">${age!==null?`${age} años`:'—'}</strong><small>Se calcula automáticamente desde tu fecha de nacimiento.</small></div>
+      </div>
+      <div class="form-grid">${MEASURE_FIELDS.map(([k,l,u])=>`<div class="field"><label>${l} <span>${u}</span></label><input name="${k}" inputmode="decimal" type="number" step="0.1" placeholder="${prev?.[k]??''}"></div>`).join('')}</div>
+      <div class="field"><label>Notas</label><textarea name="notes" placeholder="Condiciones de medición, observaciones…"></textarea></div>
+      <button class="btn primary block" type="submit">Guardar mediciones</button>
+    </form>
   </main>`;
 }
 async function saveMeasurement(form){
-  const fd=new FormData(form); const obj={id:uid('measure'),createdAt:Date.now()}; for(const [k,v] of fd.entries()) obj[k]=v; if(!obj.date) obj.date=today();
-  await put(STORE_MEASUREMENTS,obj); currentView='history'; historyTab='measurements'; await render();
+  const previousRef=await measurementReference();
+  const fd=new FormData(form);
+  const obj={id:uid('measure'),createdAt:Date.now()};
+  for(const [k,v] of fd.entries()) obj[k]=v;
+  if(!obj.date) obj.date=today();
+  if(!String(obj.height||'').trim() && previousRef.height!==null) obj.height=String(previousRef.height);
+  if(!String(obj.birthDate||'').trim() && previousRef.birthDate) obj.birthDate=previousRef.birthDate;
+  await put(STORE_MEASUREMENTS,obj);
+  // En modo automático, esto sincroniza inmediatamente peso/estatura/edad y recalcula macros.
+  await getNutritionGoal();
+  currentView='history'; historyTab='measurements'; await render();
 }
 
 async function historyHTML(){
@@ -552,7 +600,8 @@ async function showSession(id){
 }
 async function showMeasurement(id){
   const m=await getOne(STORE_MEASUREMENTS,id); if(!m)return; document.getElementById('bottomNav').classList.add('hide');
-  document.getElementById('app').innerHTML=`<main class="screen"><div class="topbar"><button class="btn ghost" data-back-history>← Historial</button><button class="btn danger" data-delete-measure="${m.id}">Eliminar</button></div><h1>Mediciones</h1><div class="subtle">${fmtDate(m.date)}</div><section class="card">${MEASURE_FIELDS.map(([k,l,u])=>m[k]?`<div class="row between"><span>${l}</span><strong>${esc(m[k])} ${u}</strong></div><div class="divider"></div>`:'').join('')}${m.notes?`<p class="subtle">${esc(m.notes)}</p>`:''}</section></main>`;
+  const measureAge=ageFromBirthDate(m.birthDate,m.date||today());
+  document.getElementById('app').innerHTML=`<main class="screen"><div class="topbar"><button class="btn ghost" data-back-history>← Historial</button><button class="btn danger" data-delete-measure="${m.id}">Eliminar</button></div><h1>Mediciones</h1><div class="subtle">${fmtDate(m.date)}</div><section class="card">${m.height?`<div class="row between"><span>Estatura</span><strong>${esc(m.height)} cm</strong></div><div class="divider"></div>`:''}${m.birthDate?`<div class="row between"><span>Fecha de nacimiento</span><strong>${fmtDate(m.birthDate)}</strong></div><div class="divider"></div>`:''}${measureAge!==null?`<div class="row between"><span>Edad en esta medición</span><strong>${measureAge} años</strong></div><div class="divider"></div>`:''}${MEASURE_FIELDS.map(([k,l,u])=>m[k]?`<div class="row between"><span>${l}</span><strong>${esc(m[k])} ${u}</strong></div><div class="divider"></div>`:'').join('')}${m.notes?`<p class="subtle">${esc(m.notes)}</p>`:''}</section></main>`;
   document.querySelector('[data-back-history]').onclick=()=>{document.getElementById('bottomNav').classList.remove('hide');render();};
   document.querySelector('[data-delete-measure]').onclick=async()=>{if(confirm('¿Eliminar esta medición?')){await del(STORE_MEASUREMENTS,id);document.getElementById('bottomNav').classList.remove('hide');render();}};
 }
@@ -609,12 +658,27 @@ function calculateNutritionGoal(input){
 }
 async function getNutritionGoal(){
   let goal=await getSetting('nutritionGoal');
-  if(!goal){
-    const latest=await latestMeasurement();
-    goal=calculateNutritionGoal({...DEFAULT_NUTRITION,calcWeight:num(latest?.weight)??DEFAULT_NUTRITION.calcWeight});
-    await put(STORE_SETTINGS,goal);
-  }
-  return goal;
+  const ref=await measurementReference();
+  if(!goal) goal={...DEFAULT_NUTRITION};
+  if(goal.mode==='manual') return goal;
+
+  const source={...DEFAULT_NUTRITION,...goal,
+    key:'nutritionGoal',
+    mode:'auto',
+    calcWeight:ref.weight??num(goal.calcWeight)??DEFAULT_NUTRITION.calcWeight,
+    height:ref.height??num(goal.height)??DEFAULT_NUTRITION.height,
+    age:ref.age??num(goal.age)??DEFAULT_NUTRITION.age,
+    birthDate:ref.birthDate||goal.birthDate||'',
+    measurementDate:ref.latest?.date||goal.measurementDate||''
+  };
+  const calculated=calculateNutritionGoal(source);
+  const fields=['calcWeight','height','age','birthDate','measurementDate','activity','deficit','proteinPerKg','fatPerKg','targetCalories','protein','fat','carbs','trm','expenditure'];
+  const changed=!goal || fields.some(k=>{
+    if(typeof calculated[k]==='number' || typeof goal?.[k]==='number') return Math.abs((+calculated[k]||0)-(+goal?.[k]||0))>0.01;
+    return String(calculated[k]??'')!==String(goal?.[k]??'');
+  });
+  if(changed) await put(STORE_SETTINGS,calculated);
+  return calculated;
 }
 function macroPct(value,target){ if(!target) return 0; return Math.max(0,Math.min(100,(value/target)*100)); }
 function macroBar(label,value,target,unit){
@@ -662,18 +726,33 @@ async function foodCatalogHTML(){
     <div class="list">${foods.map(f=>`<button class="list-item food-catalog-item" data-edit-food="${f.id}"><div class="row between"><strong>${esc(f.name)}</strong><span>${f.favorite?'★':'☆'}</span></div><span class="subtle">${f.configured?`${round(+f.baseQty,2)} ${esc(f.unit)} · ${round(+f.kcal)} kcal · P ${round(+f.protein)} · G ${round(+f.fat)} · C ${round(+f.carbs)}`:'Configurar información nutrimental'}</span></button>`).join('')}</div>`;
 }
 async function foodGoalHTML(){
-  const goal=await getNutritionGoal(); const latest=await latestMeasurement(); const latestWeight=num(latest?.weight);
-  return `<section class="card"><div class="notice">El modo automático reproduce la estructura de tu hoja: TRM → factor de actividad → déficit; proteína 2.1 g/kg, grasa 0.7 g/kg y carbohidratos con las calorías restantes. Puedes editar todos esos valores.</div>
-    ${latestWeight!==null && Math.abs(latestWeight-(+goal.calcWeight||0))>=0.2?`<div class="notice warn" style="margin-top:10px">Tu última medición es ${latestWeight} kg y el objetivo actual usa ${round(+goal.calcWeight)} kg.</div>`:''}
+  const goal=await getNutritionGoal();
+  const ref=await measurementReference();
+  const missing=[];
+  if(ref.weight===null) missing.push('peso');
+  if(ref.height===null) missing.push('estatura');
+  if(!ref.birthDate) missing.push('fecha de nacimiento');
+  return `<section class="card">
+    <div class="notice">En modo automático, Fit Log toma <strong>peso, estatura y edad directamente de Mediciones</strong>. Al guardar una nueva medición, las calorías y macros se recalculan sin que tengas que actualizar esta pantalla manualmente.</div>
+    ${missing.length?`<div class="notice warn" style="margin-top:10px">Completa ${missing.join(', ')} en Mediciones para usar tus datos reales. Mientras falten, se conserva el último valor disponible o el valor inicial.</div>`:''}
     <form id="nutritionGoalForm">
-      <div class="field"><label>Modo</label><select name="mode" id="goalMode"><option value="auto" ${goal.mode!=='manual'?'selected':''}>Automático</option><option value="manual" ${goal.mode==='manual'?'selected':''}>Manual</option></select></div>
+      <div class="field"><label>Modo</label><select name="mode" id="goalMode"><option value="auto" ${goal.mode!=='manual'?'selected':''}>Automático · usar Mediciones</option><option value="manual" ${goal.mode==='manual'?'selected':''}>Manual</option></select></div>
       <div id="autoGoalFields" class="${goal.mode==='manual'?'hide':''}">
-        <div class="form-grid"><div class="field"><label>Peso usado (kg)</label><input name="calcWeight" type="number" step="0.1" value="${round(+goal.calcWeight||99.5)}"></div><div class="field"><label>Estatura (cm)</label><input name="height" type="number" step="1" value="${+goal.height||176}"></div><div class="field"><label>Edad</label><input name="age" type="number" step="1" value="${+goal.age||34}"></div><div class="field"><label>Actividad</label><select name="activity"><option value="1.2" ${+goal.activity===1.2?'selected':''}>1.2 Sedentario</option><option value="1.375" ${+goal.activity===1.375?'selected':''}>1.375 Poca act. 1-3 días</option><option value="1.55" ${+goal.activity===1.55?'selected':''}>1.55 Moderada 3-5 días</option><option value="1.725" ${+goal.activity===1.725?'selected':''}>1.725 Muy activo 6-7 días</option><option value="1.9" ${+goal.activity===1.9?'selected':''}>1.9 Muy activo + trabajo físico</option></select></div><div class="field"><label>Déficit (%)</label><input name="deficit" type="number" step="1" value="${+goal.deficit||20}"></div><div class="field"><label>Proteína (g/kg)</label><input name="proteinPerKg" type="number" step="0.1" value="${+goal.proteinPerKg||2.1}"></div><div class="field"><label>Grasa (g/kg)</label><input name="fatPerKg" type="number" step="0.1" value="${+goal.fatPerKg||0.7}"></div></div>
-        ${latestWeight!==null?`<button class="btn ghost compact" type="button" data-use-latest-weight>Usar último peso: ${latestWeight} kg</button>`:''}
+        <div class="auto-reference-card">
+          <div class="auto-reference-head"><div><span class="dashboard-kicker">Referencia actual</span><h3>Datos de Mediciones</h3></div><span class="profile-sync-badge">Sincronizado</span></div>
+          <div class="form-grid">
+            <div class="field"><label>Peso usado (kg)</label><input name="calcWeight" type="number" step="0.1" value="${round(+goal.calcWeight||99.5)}" readonly></div>
+            <div class="field"><label>Estatura (cm)</label><input name="height" type="number" step="0.1" value="${round(+goal.height||176)}" readonly></div>
+            <div class="field"><label>Edad calculada</label><input name="age" type="number" step="1" value="${+goal.age||34}" readonly></div>
+            <div class="field"><label>Fecha de nacimiento</label><input type="text" value="${ref.birthDate?fmtDate(ref.birthDate):'No registrada'}" readonly></div>
+          </div>
+          <div class="subtle auto-reference-foot">${goal.measurementDate?`Última referencia: ${fmtDate(goal.measurementDate)}`:'Aún no hay una medición de referencia.'}</div>
+        </div>
+        <div class="form-grid"><div class="field"><label>Actividad</label><select name="activity"><option value="1.2" ${+goal.activity===1.2?'selected':''}>1.2 Sedentario</option><option value="1.375" ${+goal.activity===1.375?'selected':''}>1.375 Poca act. 1-3 días</option><option value="1.55" ${+goal.activity===1.55?'selected':''}>1.55 Moderada 3-5 días</option><option value="1.725" ${+goal.activity===1.725?'selected':''}>1.725 Muy activo 6-7 días</option><option value="1.9" ${+goal.activity===1.9?'selected':''}>1.9 Muy activo + trabajo físico</option></select></div><div class="field"><label>Déficit (%)</label><input name="deficit" type="number" step="1" value="${+goal.deficit||20}"></div><div class="field"><label>Proteína (g/kg)</label><input name="proteinPerKg" type="number" step="0.1" value="${+goal.proteinPerKg||2.1}"></div><div class="field"><label>Grasa (g/kg)</label><input name="fatPerKg" type="number" step="0.1" value="${+goal.fatPerKg||0.7}"></div></div>
         <div id="goalPreview" class="goal-preview"></div>
       </div>
       <div id="manualGoalFields" class="${goal.mode==='manual'?'':'hide'}"><div class="form-grid"><div class="field"><label>Calorías</label><input name="manualCalories" type="number" step="1" value="${round(+goal.targetCalories)}"></div><div class="field"><label>Proteína (g)</label><input name="manualProtein" type="number" step="1" value="${round(+goal.protein)}"></div><div class="field"><label>Grasa (g)</label><input name="manualFat" type="number" step="1" value="${round(+goal.fat)}"></div><div class="field"><label>Carbohidratos (g)</label><input name="manualCarbs" type="number" step="1" value="${round(+goal.carbs)}"></div></div></div>
-      <button class="btn primary block" type="submit">Guardar objetivo</button>
+      <button class="btn primary block" type="submit">Guardar configuración</button>
     </form>
   </section>`;
 }
@@ -760,7 +839,8 @@ async function saveNutritionGoal(form){
   if(mode==='manual'){
     const old=await getNutritionGoal(); goal={...old,key:'nutritionGoal',mode:'manual',targetCalories:+fd.get('manualCalories'),protein:+fd.get('manualProtein'),fat:+fd.get('manualFat'),carbs:+fd.get('manualCarbs'),updatedAt:Date.now()};
   }else{
-    goal=calculateNutritionGoal({key:'nutritionGoal',mode:'auto',calcWeight:+fd.get('calcWeight'),height:+fd.get('height'),age:+fd.get('age'),activity:+fd.get('activity'),deficit:+fd.get('deficit'),proteinPerKg:+fd.get('proteinPerKg'),fatPerKg:+fd.get('fatPerKg')});
+    const ref=await measurementReference();
+    goal=calculateNutritionGoal({key:'nutritionGoal',mode:'auto',calcWeight:ref.weight??(+fd.get('calcWeight')||DEFAULT_NUTRITION.calcWeight),height:ref.height??(+fd.get('height')||DEFAULT_NUTRITION.height),age:ref.age??(+fd.get('age')||DEFAULT_NUTRITION.age),birthDate:ref.birthDate||'',measurementDate:ref.latest?.date||'',activity:+fd.get('activity'),deficit:+fd.get('deficit'),proteinPerKg:+fd.get('proteinPerKg'),fatPerKg:+fd.get('fatPerKg')});
   }
   await put(STORE_SETTINGS,goal); alert('Objetivo guardado.'); render();
 }
@@ -797,7 +877,6 @@ function bindFoodEvents(){
   const goalMode=document.getElementById('goalMode'); goalMode?.addEventListener('change',()=>{document.getElementById('autoGoalFields')?.classList.toggle('hide',goalMode.value==='manual');document.getElementById('manualGoalFields')?.classList.toggle('hide',goalMode.value!=='manual');if(goalMode.value==='auto')updateGoalPreview();});
   document.getElementById('nutritionGoalForm')?.addEventListener('input',()=>{if(document.getElementById('goalMode')?.value==='auto')updateGoalPreview();});
   document.getElementById('nutritionGoalForm')?.addEventListener('submit',e=>{e.preventDefault();saveNutritionGoal(e.currentTarget);});
-  document.querySelector('[data-use-latest-weight]')?.addEventListener('click',async()=>{const m=await latestMeasurement();const input=document.querySelector('[name="calcWeight"]');if(input&&m?.weight){input.value=m.weight;updateGoalPreview();}});
   if(document.getElementById('goalPreview') && document.getElementById('goalMode')?.value==='auto') updateGoalPreview();
 }
 function filterFoodPicker(){
@@ -928,6 +1007,7 @@ function bindViewEvents(){
   document.querySelector('[data-action="import-backup"]')?.addEventListener('click',()=>document.getElementById('backupFileInput')?.click());
   document.getElementById('backupFileInput')?.addEventListener('change',async e=>{const file=e.target.files?.[0];if(file) await importBackupFile(file);e.target.value='';});
   document.getElementById('measureForm')?.addEventListener('submit',e=>{e.preventDefault();saveMeasurement(e.currentTarget)});
+  document.getElementById('birthDateInput')?.addEventListener('change',e=>{const age=ageFromBirthDate(e.target.value,today());const el=document.getElementById('calculatedAge');if(el)el.textContent=age!==null?`${age} años`:'—';});
   document.querySelectorAll('[data-history-tab]').forEach(b=>b.addEventListener('click',()=>{historyTab=b.dataset.historyTab;render();}));
   document.querySelectorAll('[data-session-id]').forEach(b=>b.addEventListener('click',()=>showSession(b.dataset.sessionId)));
   document.querySelectorAll('[data-measure-id]').forEach(b=>b.addEventListener('click',()=>showMeasurement(b.dataset.measureId)));

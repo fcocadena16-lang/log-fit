@@ -1,5 +1,6 @@
 {
-  "version": "9.1",
-  "published": "2026-09-12",
-  "name": "Fit Log"
+  "version": "9.2",
+  "published": "2026-09-13",
+  "name": "Fit Log",
+  "notes": "Mediciones sincronizan automáticamente peso, estatura y edad con el cálculo de calorías y macros."
 }

@@ -1,10 +1,10 @@
-const APP_VERSION = '9.1';
-const CACHE = 'fit-log-shell-v9.1-updater-fix';
+const APP_VERSION = '9.2';
+const CACHE = 'fit-log-shell-v9.2-auto-metrics';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=9.1',
-  './app.js?v=9.1',
+  './styles.css?v=9.2',
+  './app.js?v=9.2',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',
