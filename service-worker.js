@@ -1,4 +1,4 @@
-const CACHE = 'fit-log-shell-v3';
+const CACHE = 'fit-log-shell-v4';
 const APP_SHELL = [
   './',
   './index.html',
@@ -25,7 +25,6 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Local-first: the installed app does not wait on the network to start.
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
