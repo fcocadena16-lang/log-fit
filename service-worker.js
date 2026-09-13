@@ -1,8 +1,8 @@
-const CACHE = 'fit-log-shell-v5-light';
+const CACHE = 'fit-log-shell-v6-light-fix';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css',
+  './styles.css?v=6',
   './app.js',
   './manifest.json',
   './icons/icon-192.png',

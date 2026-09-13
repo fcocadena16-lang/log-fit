@@ -32,3 +32,14 @@ html{color-scheme:light}
 }
 .nav-btn.active{font-weight:700}
 .metric,.goal-grid>div,.chip,.macro-track,.progressbar{border:1px solid rgba(220,227,234,.75)}
+
+/* Corrección tema claro v6 para iOS/Safari */
+html, body { background:#f4f7fb !important; color:#17212b !important; color-scheme:light !important; }
+input, select, textarea, button { color-scheme:light !important; }
+input, select, textarea {
+  background-color:#fbfcfe !important;
+  color:#17212b !important;
+}
+.card, .routine-btn, .list-item {
+  background-color:#ffffff;
+}
