@@ -325,3 +325,18 @@ body{font-size:16px}
 .cardio-history-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.cardio-history-grid>div{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:12px}.cardio-history-grid span{display:block;color:var(--muted);font-size:12px}.cardio-history-grid strong{display:block;margin-top:4px;font-size:18px}
 .history-split-set{display:grid;grid-template-columns:72px 1fr;gap:5px 10px}.history-split-set strong{grid-row:1/3}.history-split-set span{font-size:13px;color:var(--muted)}
 @media(max-width:520px){.workout-topbar{padding-right:138px}.workout-floating-tools{right:8px}.workout-tool-btn{height:40px;min-width:40px}.timer-tool{min-width:82px}.cardio-grid,.calc-grid{grid-template-columns:1fr}.timer-actions{grid-template-columns:1fr}.side-set-row,.split-columns{grid-template-columns:38px 1fr .75fr .65fr}.side-set-row input{padding:10px 6px}.history-split-set{grid-template-columns:64px 1fr}}
+
+
+/* v9.6: inicio limpio, historial, reportes, ejercicios libres y comida libre */
+.weight-hero.weight-only{display:block;grid-template-columns:none;min-height:0;padding:24px 26px}
+.weight-hero.weight-only .weight-hero-copy{max-width:100%}
+.daily-report-btn{width:100%;margin:12px 0 4px;border:1px solid #dfe6f1;background:rgba(255,255,255,.88);border-radius:20px;padding:15px 17px;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;color:var(--ink);box-shadow:var(--shadow-soft)}
+.daily-report-btn span{display:flex;flex-direction:column;gap:2px}.daily-report-btn b{font-size:16px}.daily-report-btn small{font-size:12px;color:var(--sub)}.daily-report-btn>strong{font-size:13px;color:#5977df;white-space:nowrap}
+.train-header-actions{display:flex;align-items:center;gap:10px}.train-header-actions .section-symbol{flex:none}
+.add-exercise-btn{margin:12px 0 18px;border-style:dashed!important;background:#f9fbff!important;color:#4966d5!important}
+.meal-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.meal-4::before{background:#f5cf7b}
+.meal-4{background:linear-gradient(180deg,#fffdf7,#fff)}
+.meal-4 .section-kicker{color:#a77a17}
+.workout-sheet textarea{min-height:84px}
+@media(max-width:520px){.train-header-actions{flex-direction:column-reverse;align-items:flex-end}.daily-report-btn{padding:14px 15px}.daily-report-btn small{max-width:220px}.weight-hero.weight-only{padding:21px}}

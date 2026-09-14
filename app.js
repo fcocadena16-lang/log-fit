@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '9.5';
+const APP_VERSION = '9.6';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -107,6 +107,11 @@ function replacementOptions(name){
   if(!group) return [];
   return exerciseCatalog().filter(x=>x.group===group && x.name!==name);
 }
+function replacementOptionsForExercise(exercise){
+  const group=exercise?.group||EXERCISE_META[exercise?.name]?.group;
+  if(!group) return [];
+  return exerciseCatalog().filter(x=>x.group===group && x.name!==exercise.name);
+}
 
 const MEASURE_FIELDS = [
   ['weight','Peso','kg'],
@@ -122,7 +127,7 @@ const MEASURE_FIELDS = [
   ['forearm','Antebrazo','cm']
 ];
 
-const DEFAULT_MEALS = ['Desayuno','Snack','Comida','Cena'];
+const DEFAULT_MEALS = ['Desayuno','Snack','Comida','Cena','Comida libre'];
 const FOOD_UNITS = ['g','ml','pieza','scoop','cucharadita','taza'];
 const STARTER_FOODS = [
   ['Huevo',1,'pieza'],
@@ -386,7 +391,7 @@ async function homeHTML(){
       </button>
     </header>
 
-    <section class="weight-hero">
+    <section class="weight-hero weight-only">
       <div class="weight-hero-copy">
         <span class="dashboard-kicker">Peso actual</span>
         <div class="weight-main"><strong>${m?.weight??'—'}</strong><span>${m?.weight?'kg':''}</span></div>
@@ -395,13 +400,8 @@ async function homeHTML(){
           ${totalWeightDelta!==null?`<span>${totalWeightDelta>0?'+':''}${totalWeightDelta} kg desde inicio</span>`:''}
         </div>
       </div>
-      <button class="weight-hero-side" data-action="progress-now">
-        <span>Progreso</span>
-        <strong>${m?.waistMin?`${m.waistMin} cm`:'Ver'}</strong>
-        <small>${m?.waistMin?'cintura actual':'tendencias'}</small>
-        <span class="card-arrow">↗</span>
-      </button>
     </section>
+    <button class="daily-report-btn" data-action="daily-report" data-report-date="${today()}"><span><b>Reporte de hoy</b><small>Entrenamiento, cardio, comida y macros</small></span><strong>Compartir →</strong></button>
 
     <div class="dashboard-section-head"><h2>Hoy</h2><span class="status mini-status ok">● Local</span></div>
     <div class="bento-grid">
@@ -467,7 +467,7 @@ function trainHTML(){
   return `<main class="screen section-screen train-screen">
     <div class="section-app-header train-header">
       <div><span class="dashboard-kicker">Rutina semanal</span><h1>Entrenar</h1><p>Selecciona una sesión. Los últimos valores se cargan automáticamente y puedes cambiarlos durante el entrenamiento.</p></div>
-      <div class="section-symbol"><svg viewBox="0 0 24 24"><path d="M5 8v8M8 6v12M16 6v12M19 8v8M8 12h8M3 10v4M21 10v4"/></svg></div>
+      <div class="train-header-actions"><button class="btn ghost compact" data-train-history>Historial</button><div class="section-symbol"><svg viewBox="0 0 24 24"><path d="M5 8v8M8 6v12M16 6v12M19 8v8M8 12h8M3 10v4M21 10v4"/></svg></div></div>
     </div>
     ${draft?`<section class="card resume-workout-card"><div><span class="section-kicker">Entrenamiento en curso</span><h3>${esc(draft.routine)}</h3><p class="subtle">Tu sesión quedó guardada automáticamente.</p></div><button class="btn primary" data-resume-workout>Continuar</button></section>`:''}
     <div class="routine-grid routine-grid-v9">${Object.keys(ROUTINES).map((n,i)=>`<button class="routine-btn routine-v9 routine-tone-${i+1}" data-routine="${esc(n)}"><span class="routine-index">0${i+1}</span><div><strong>${esc(n)}</strong><small>${ROUTINES[n].length} ejercicios</small></div><span class="card-arrow">→</span></button>`).join('')}</div>
@@ -486,9 +486,14 @@ function loadWorkoutDraft(){
 function persistWorkoutDraft(){
   if(!activeSessionDraft) return;
   try{ localStorage.setItem(WORKOUT_DRAFT_KEY,JSON.stringify(activeSessionDraft)); }catch{}
+  put(STORE_SETTINGS,{key:'activeWorkoutDraft',draft:clone(activeSessionDraft),updatedAt:Date.now()}).catch(()=>{});
+}
+async function loadWorkoutDraftDB(){
+  try{ const saved=await getSetting('activeWorkoutDraft'); return saved?.draft?.routine&&Array.isArray(saved.draft.exercises)?saved.draft:null; }catch{return null;}
 }
 function clearWorkoutDraft(){
   try{ localStorage.removeItem(WORKOUT_DRAFT_KEY); }catch{}
+  del(STORE_SETTINGS,'activeWorkoutDraft').catch(()=>{});
 }
 function setHasData(st,splitSides=false){
   if(splitSides) return ['leftWeight','leftReps','leftRir','rightWeight','rightReps','rightRir'].some(k=>String(st?.[k]??'')!=='');
@@ -512,7 +517,7 @@ async function buildExerciseDraft(exName,meta,originalName=null){
     st.n=i+1;
     return st;
   });
-  return {name:exName,originalName:originalName||exName,defaultUnit:meta.unit,seed:meta.seed,previous:prev?formatPrevious(prev):meta.seed,splitSides:!!prevEx?.splitSides,sets,feeling:'',notes:''};
+  return {name:exName,originalName:originalName||exName,defaultUnit:meta.unit,seed:meta.seed,previous:prev?formatPrevious(prev):meta.seed,group:meta.group||prevEx?.group||EXERCISE_META[exName]?.group||'Otro',custom:!!meta.custom,splitSides:!!prevEx?.splitSides,sets,feeling:'',notes:''};
 }
 async function startRoutine(name){
   const existing=loadWorkoutDraft();
@@ -597,6 +602,7 @@ function renderWorkout(){
     </section>
     <div class="field date-field"><label>Fecha</label><input id="sessionDate" type="date" value="${s.date}"></div>
     <div id="exerciseList">${s.exercises.map((e,i)=>exerciseHTML(e,i)).join('')}</div>
+    <button class="btn ghost block add-exercise-btn" data-add-exercise>+ Agregar ejercicio</button>
     <section class="card cardio-card"><div class="section-kicker">Final</div><h3>Cardio</h3><div class="cardio-grid"><div class="field"><label>Minutos</label><input inputmode="numeric" type="number" min="0" step="1" value="${esc(s.cardio.minutes)}" data-cardio="minutes"></div><div class="field"><label>Ritmo cardiaco (bpm)</label><input inputmode="numeric" type="number" min="0" step="1" value="${esc(s.cardio.heartRate)}" data-cardio="heartRate"></div><div class="field"><label>Inclinación (%)</label><input inputmode="decimal" type="number" min="0" step="0.1" value="${esc(s.cardio.incline)}" data-cardio="incline"></div><div class="field"><label>Velocidad (km/h)</label><input inputmode="decimal" type="number" min="0" step="0.1" value="${esc(s.cardio.speed)}" data-cardio="speed"></div></div></section>
     <section class="card session-card"><div class="section-kicker">Cierre</div><h3>Sesión</h3><div class="field"><label>Sensación general</label><select id="overallFeeling"><option value="">Seleccionar</option>${['Excelente','Bien','Normal','Pesada','Muy pesada','Molestia'].map(v=>`<option ${s.overallFeeling===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Notas generales</label><textarea id="sessionNotes" placeholder="Resumen del entrenamiento…">${esc(s.notes)}</textarea></div></section>
     <div class="save-actions"><button class="btn primary block save-workout-btn" data-action="save-session">Guardar entrenamiento</button></div>
@@ -605,7 +611,7 @@ function renderWorkout(){
   bindWorkoutEvents(); ensureTimerInterval();
 }
 function exerciseHTML(e,i){
-  const alts=replacementOptions(e.name); const group=EXERCISE_META[e.name]?.group||'';
+  const alts=replacementOptionsForExercise(e); const group=e.group||EXERCISE_META[e.name]?.group||'';
   return `<section class="card exercise" data-ex="${i}">
     <div class="exercise-head">
       <div class="exercise-number">${i+1}</div>
@@ -614,7 +620,7 @@ function exerciseHTML(e,i){
     <div class="previous-panel"><span>Último registro</span><strong>${esc(e.previous||e.seed)}</strong></div>
     ${e.splitSides?`<div class="split-note">Resultados independientes para izquierda y derecha</div>`:''}
     <div class="sets">${e.sets.map((st,j)=>setRowHTML(st,i,j,e.splitSides)).join('')}</div>
-    <div class="exercise-footer"><button class="btn ghost compact" data-add-set="${i}">+ Añadir serie</button><button class="btn ghost compact ${e.splitSides?'active':''}" data-toggle-sides="${i}">${e.splitSides?'Un solo resultado':'↔ Izq / Der'}</button></div>
+    <div class="exercise-footer"><button class="btn ghost compact" data-add-set="${i}">+ Añadir serie</button><button class="btn ghost compact ${e.splitSides?'active':''}" data-toggle-sides="${i}">${e.splitSides?'Un solo resultado':'↔ Izq / Der'}</button>${e.custom?`<button class="btn ghost compact danger-text" data-remove-exercise="${i}">Eliminar ejercicio</button>`:''}</div>
     <div class="exercise-meta-grid"><div class="field"><label>Sensaciones</label><select data-feeling="${i}"><option value="">Seleccionar</option>${['Muy ligero','Bien','Normal','Pesado','Muy pesado','Molestia'].map(v=>`<option ${e.feeling===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Notas</label><textarea data-notes="${i}" placeholder="Técnica, molestias, ajustes…">${esc(e.notes)}</textarea></div></div>
   </section>`;
 }
@@ -654,6 +660,8 @@ function bindWorkoutEvents(){
   document.querySelectorAll('[data-remove-set]').forEach(b=>b.addEventListener('click',()=>{const [ei,si]=b.dataset.removeSet.split(':').map(Number);const e=activeSessionDraft.exercises[ei];if(e.sets.length===1)return;e.sets.splice(si,1);e.sets.forEach((x,n)=>x.n=n+1);persistWorkoutDraft();renderWorkout();}));
   document.querySelectorAll('[data-toggle-sides]').forEach(b=>b.addEventListener('click',()=>toggleExerciseSides(+b.dataset.toggleSides)));
   document.querySelectorAll('[data-change-exercise]').forEach(b=>b.addEventListener('click',()=>openExerciseSwapSheet(+b.dataset.changeExercise)));
+  document.querySelector('[data-add-exercise]')?.addEventListener('click',openAddExerciseSheet);
+  document.querySelectorAll('[data-remove-exercise]').forEach(b=>b.addEventListener('click',()=>removeCustomExercise(+b.dataset.removeExercise)));
   document.querySelector('[data-open-calculator]')?.addEventListener('click',openCalculatorSheet);
   document.querySelector('[data-rest-timer]')?.addEventListener('click',openTimerSheet);
   document.querySelector('[data-action="save-session"]')?.addEventListener('click',saveSession);
@@ -664,7 +672,7 @@ function toggleExerciseSides(index){
   persistWorkoutDraft(); renderWorkout();
 }
 function openExerciseSwapSheet(index){
-  const e=activeSessionDraft.exercises[index]; const alts=replacementOptions(e.name); if(!alts.length) return;
+  const e=activeSessionDraft.exercises[index]; const alts=replacementOptionsForExercise(e); if(!alts.length) return;
   const host=document.getElementById('workoutSheetHost'); if(!host)return;
   host.innerHTML=`<div class="workout-sheet-backdrop" data-close-workout-sheet><div class="workout-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Misma zona muscular</span><h3>Cambiar ejercicio</h3></div><button class="icon-btn icon-square" data-close-workout-sheet>✕</button></div><div class="swap-option-list">${alts.map(a=>`<button class="swap-option" data-swap-to="${esc(a.name)}"><span>${esc(a.name)}</span><small>${esc(a.group)}</small><b>›</b></button>`).join('')}</div></div></div>`;
   host.querySelectorAll('[data-close-workout-sheet]').forEach(x=>x.addEventListener('click',closeWorkoutSheet));
@@ -676,6 +684,21 @@ async function swapExerciseTo(index,newName){
   if(hasData && !confirm('Este ejercicio ya tiene datos. ¿Cambiarlo y reemplazar lo registrado en este ejercicio?')) return;
   const meta=exerciseCatalog().find(x=>x.name===newName); if(!meta)return;
   activeSessionDraft.exercises[index]=await buildExerciseDraft(newName,meta,current.originalName||current.name); persistWorkoutDraft(); renderWorkout();
+}
+async function openAddExerciseSheet(){
+  const host=document.getElementById('workoutSheetHost'); if(!host)return;
+  const sessions=await getAll(STORE_SESSIONS);
+  const known=new Map(exerciseCatalog().map(x=>[x.name,x]));
+  for(const s of sessions) for(const e of s.exercises||[]) if(!known.has(e.name)) known.set(e.name,{name:e.name,unit:e.defaultUnit||e.sets?.[0]?.unit||'lb',setCount:e.sets?.length||2,seed:'Último registro disponible',group:e.group||'Otro'});
+  const groups=[...new Set([...known.values()].map(x=>x.group).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  host.innerHTML=`<div class="workout-sheet-backdrop" data-close-workout-sheet><div class="workout-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Sesión actual</span><h3>Agregar ejercicio</h3></div><button class="icon-btn icon-square" data-close-workout-sheet>✕</button></div><form id="addExerciseForm"><div class="field"><label>Ejercicio</label><input name="name" list="knownExerciseList" placeholder="Ej. Martillo sentado con apoyo" required><datalist id="knownExerciseList">${[...known.values()].sort((a,b)=>a.name.localeCompare(b.name,'es')).map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></div><div class="field"><label>Zona muscular</label><input name="group" list="exerciseGroupList" placeholder="Ej. Bíceps" required><datalist id="exerciseGroupList">${groups.map(g=>`<option value="${esc(g)}"></option>`).join('')}</datalist></div><div class="form-grid"><div class="field"><label>Unidad</label><select name="unit"><option>lb</option><option>kg</option></select></div><div class="field"><label>Series</label><input name="sets" type="number" min="1" max="10" step="1" value="2"></div></div><label class="check-row"><input name="splitSides" type="checkbox"> Registrar izquierda y derecha por separado</label><button class="btn primary block" type="submit">Agregar a la sesión</button></form></div></div>`;
+  host.querySelectorAll('[data-close-workout-sheet]').forEach(x=>x.addEventListener('click',closeWorkoutSheet));
+  document.getElementById('addExerciseForm')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);const name=String(fd.get('name')||'').trim();if(!name)return;const knownMeta=known.get(name);const meta={name,unit:String(fd.get('unit')||knownMeta?.unit||'lb'),setCount:Math.max(1,+fd.get('sets')||knownMeta?.setCount||2),seed:'Sin registro previo',group:String(fd.get('group')||knownMeta?.group||'Otro').trim()||'Otro',custom:!exerciseCatalog().some(x=>x.name===name)};const draft=await buildExerciseDraft(name,meta);draft.custom=meta.custom;draft.group=meta.group;if(fd.get('splitSides')==='on')draft.splitSides=true;activeSessionDraft.exercises.push(draft);persistWorkoutDraft();renderWorkout();});
+}
+function removeCustomExercise(index){
+  const e=activeSessionDraft.exercises[index]; if(!e?.custom)return;
+  if(exerciseHasData(e) && !confirm('Este ejercicio ya tiene datos. ¿Eliminarlo de la sesión?')) return;
+  activeSessionDraft.exercises.splice(index,1); persistWorkoutDraft(); renderWorkout();
 }
 function openCalculatorSheet(){
   const host=document.getElementById('workoutSheetHost'); if(!host)return;
@@ -758,8 +781,9 @@ function historySetHTML(e,st,i){
 async function showSession(id){
   const s=await getOne(STORE_SESSIONS,id); if(!s)return; document.getElementById('bottomNav').classList.add('hide');
   const cardio=s.cardio||{}; const hasCardio=Object.values(cardio).some(v=>String(v??'')!=='');
-  document.getElementById('app').innerHTML=`<main class="screen"><div class="topbar"><button class="btn ghost" data-back-history>← Historial</button><button class="btn danger" data-delete-session="${s.id}">Eliminar</button></div><h1>${esc(s.routine)}</h1><div class="subtle">${fmtDate(s.date)}</div>${s.exercises.map(e=>`<section class="card"><h3>${esc(e.name)}</h3>${(e.sets||[]).filter(st=>setHasData(st,!!e.splitSides)).map((st,i)=>historySetHTML(e,st,i)).join('<div class="divider"></div>')||'<span class="subtle">Sin series registradas</span>'}${e.feeling?`<div class="chips"><span class="chip">${esc(e.feeling)}</span></div>`:''}${e.notes?`<p class="subtle">${esc(e.notes)}</p>`:''}</section>`).join('')}${hasCardio?`<section class="card"><h3>Cardio</h3><div class="cardio-history-grid">${cardio.minutes?`<div><span>Minutos</span><strong>${esc(cardio.minutes)}</strong></div>`:''}${cardio.heartRate?`<div><span>Ritmo cardiaco</span><strong>${esc(cardio.heartRate)} bpm</strong></div>`:''}${cardio.incline?`<div><span>Inclinación</span><strong>${esc(cardio.incline)}%</strong></div>`:''}${cardio.speed?`<div><span>Velocidad</span><strong>${esc(cardio.speed)} km/h</strong></div>`:''}</div></section>`:''}${s.overallFeeling||s.notes?`<section class="card"><h3>Sesión</h3>${s.overallFeeling?`<p>${esc(s.overallFeeling)}</p>`:''}${s.notes?`<p class="subtle">${esc(s.notes)}</p>`:''}</section>`:''}</main>`;
+  document.getElementById('app').innerHTML=`<main class="screen"><div class="topbar"><button class="btn ghost" data-back-history>← Historial</button><div class="row"><button class="btn ghost" data-session-report="${s.date}">Reporte</button><button class="btn danger" data-delete-session="${s.id}">Eliminar</button></div></div><h1>${esc(s.routine)}</h1><div class="subtle">${fmtDate(s.date)}</div>${s.exercises.map(e=>`<section class="card"><h3>${esc(e.name)}</h3>${(e.sets||[]).filter(st=>setHasData(st,!!e.splitSides)).map((st,i)=>historySetHTML(e,st,i)).join('<div class="divider"></div>')||'<span class="subtle">Sin series registradas</span>'}${e.feeling?`<div class="chips"><span class="chip">${esc(e.feeling)}</span></div>`:''}${e.notes?`<p class="subtle">${esc(e.notes)}</p>`:''}</section>`).join('')}${hasCardio?`<section class="card"><h3>Cardio</h3><div class="cardio-history-grid">${cardio.minutes?`<div><span>Minutos</span><strong>${esc(cardio.minutes)}</strong></div>`:''}${cardio.heartRate?`<div><span>Ritmo cardiaco</span><strong>${esc(cardio.heartRate)} bpm</strong></div>`:''}${cardio.incline?`<div><span>Inclinación</span><strong>${esc(cardio.incline)}%</strong></div>`:''}${cardio.speed?`<div><span>Velocidad</span><strong>${esc(cardio.speed)} km/h</strong></div>`:''}</div></section>`:''}${s.overallFeeling||s.notes?`<section class="card"><h3>Sesión</h3>${s.overallFeeling?`<p>${esc(s.overallFeeling)}</p>`:''}${s.notes?`<p class="subtle">${esc(s.notes)}</p>`:''}</section>`:''}</main>`;
   document.querySelector('[data-back-history]').onclick=()=>{document.getElementById('bottomNav').classList.remove('hide');render();};
+  document.querySelector('[data-session-report]')?.addEventListener('click',e=>shareDailyReport(e.currentTarget.dataset.sessionReport));
   document.querySelector('[data-delete-session]').onclick=async()=>{if(confirm('¿Eliminar este entrenamiento?')){await del(STORE_SESSIONS,id);document.getElementById('bottomNav').classList.remove('hide');render();}};
 }
 async function showMeasurement(id){
@@ -772,6 +796,7 @@ async function showMeasurement(id){
 
 async function progressHTML(){
   const measures=(await getAll(STORE_MEASUREMENTS)).sort((a,b)=>a.date.localeCompare(b.date)); const selected='weight';
+  const savedSessions=await getAll(STORE_SESSIONS); const exerciseNames=[...new Set([...Object.values(ROUTINES).flat().map(x=>x[0]),...savedSessions.flatMap(s=>(s.exercises||[]).map(e=>e.name))])].sort((a,b)=>a.localeCompare(b,'es'));
   const pts=measures.map(m=>({date:m.date,val:num(m.weight)})).filter(x=>x.val!==null);
   const latest=pts.at(-1), previous=pts.at(-2); const delta=latest&&previous?latest.val-previous.val:null;
   return `<main class="screen"><div class="topbar"><div><div class="subtle eyebrow">Tendencias</div><h1>Progreso</h1></div></div>
@@ -780,7 +805,7 @@ async function progressHTML(){
       <div class="progress-stat"><span>Último cambio</span><strong class="${delta===null?'':delta<=0?'good-delta':'neutral-delta'}">${delta===null?'—':`${delta>0?'+':''}${round(delta,1)} kg`}</strong><small>${previous?'vs. medición anterior':'Necesitas 2 registros'}</small></div>
     </div>
     <section class="card chart-card"><div class="field"><label>Medición</label><select id="metricSelect">${MEASURE_FIELDS.map(([k,l])=>`<option value="${k}" ${k===selected?'selected':''}>${l}</option>`).join('')}</select></div><div id="chartArea">${chartHTML(measures,selected)}</div></section>
-    <div class="section-title"><h2>Rendimiento</h2></div><section class="card"><div class="field"><label>Ejercicio</label><select id="exerciseSelect"><option value="">Seleccionar ejercicio</option>${[...new Set(Object.values(ROUTINES).flat().map(x=>x[0]))].sort().map(n=>`<option>${esc(n)}</option>`).join('')}</select></div><div id="exerciseProgress" class="subtle exercise-progress-placeholder">Selecciona un ejercicio para ver sus últimas sesiones.</div></section>
+    <div class="section-title"><h2>Rendimiento</h2></div><section class="card"><div class="field"><label>Ejercicio</label><select id="exerciseSelect"><option value="">Seleccionar ejercicio</option>${exerciseNames.map(n=>`<option>${esc(n)}</option>`).join('')}</select></div><div id="exerciseProgress" class="subtle exercise-progress-placeholder">Selecciona un ejercicio para ver sus últimas sesiones.</div></section>
   </main>`;
 }
 function chartHTML(data,key){
@@ -805,9 +830,17 @@ function foodDayTotals(day){
   return total;
 }
 function defaultFoodDay(date){ return {id:date,date,createdAt:Date.now(),updatedAt:Date.now(),meals:DEFAULT_MEALS.map((name,i)=>({id:`meal-${i}`,name,items:[]}))}; }
+function normalizeFoodDay(day){
+  if(!day) return day;
+  day.meals=Array.isArray(day.meals)?day.meals:[];
+  let changed=false;
+  for(const name of DEFAULT_MEALS){ if(!day.meals.some(m=>m.name===name)){day.meals.push({id:`meal-${day.meals.length}`,name,items:[]});changed=true;} }
+  return {day,changed};
+}
 async function getFoodDay(date,create=false){
   let day=await getOne(STORE_FOOD_DAYS,date);
-  if(!day && create){ day=defaultFoodDay(date); await put(STORE_FOOD_DAYS,day); }
+  if(!day && create){ day=defaultFoodDay(date); await put(STORE_FOOD_DAYS,day); return day; }
+  if(day){const normalized=normalizeFoodDay(day);day=normalized.day;if(normalized.changed){day.updatedAt=Date.now();await put(STORE_FOOD_DAYS,day);}}
   return day;
 }
 function calculateNutritionGoal(input){
@@ -896,14 +929,20 @@ async function foodTodayHTML(){
     ${day.meals.map((meal,mi)=>mealHTML(meal,mi)).join('')}
     <section class="card template-card"><div class="row between"><div><div class="section-kicker">Atajos</div><strong>Plantillas</strong><div class="subtle">Guarda un día frecuente o cárgalo de nuevo.</div></div><button class="btn ghost compact" data-save-food-template>Guardar día</button></div>
       ${templates.length?`<div class="template-list">${templates.map(t=>`<button class="chip template-chip" data-load-food-template="${t.id}">${esc(t.name)}</button>`).join('')}</div>`:'<div class="subtle" style="margin-top:10px">Todavía no tienes plantillas.</div>'}
-    </section>`;
+    </section><div id="foodSheetHost"></div>`;
 }
 function mealHTML(meal,mi){
-  const mt=meal.items.reduce((a,b)=>sumMacros(a,b),emptyMacros());
-  return `<section class="card meal-card meal-${mi}"><div class="row between meal-header"><div><div class="section-kicker">Comida ${mi+1}</div><h3>${esc(meal.name)}</h3><div class="subtle">${round(mt.kcal)} kcal · P ${round(mt.protein)} · G ${round(mt.fat)} · C ${round(mt.carbs)}</div></div><button class="btn primary compact" data-add-food="${mi}">+ Agregar</button></div>
-    ${meal.items.length?`<div class="food-items">${meal.items.map((item,ii)=>`<div class="food-item"><button class="food-item-main" data-edit-food-item="${mi}:${ii}"><strong>${esc(item.name)}</strong><span>${round(item.qty,2)} ${esc(item.unit)} · ${round(item.kcal)} kcal</span><small>P ${round(item.protein)} · G ${round(item.fat)} · C ${round(item.carbs)}</small></button><button class="icon-btn danger-text" data-remove-food-item="${mi}:${ii}" aria-label="Eliminar">×</button></div>`).join('')}</div>`:'<div class="subtle meal-empty">Sin alimentos registrados.</div>'}
-    <button class="btn ghost compact copy-meal" data-copy-yesterday="${mi}">Copiar de ayer</button>
+  const mt=meal.items.reduce((a,b)=>sumMacros(a,b),emptyMacros()); const isFree=meal.name==='Comida libre';
+  return `<section class="card meal-card meal-${mi}"><div class="row between meal-header"><div><div class="section-kicker">${isFree?'Estimación':'Comida '+(mi+1)}</div><h3>${esc(meal.name)}</h3><div class="subtle">${round(mt.kcal)} kcal · P ${round(mt.protein)} · G ${round(mt.fat)} · C ${round(mt.carbs)}</div></div><div class="meal-actions">${isFree?`<button class="btn primary compact" data-add-cheat="${mi}">+ Aproximado</button>`:`<button class="btn primary compact" data-add-food="${mi}">+ Agregar</button>`}</div></div>
+    ${meal.items.length?`<div class="food-items">${meal.items.map((item,ii)=>`<div class="food-item"><button class="food-item-main" data-edit-food-item="${mi}:${ii}"><strong>${esc(item.name)}</strong><span>${item.detailText?esc(item.detailText):`${round(item.qty,2)} ${esc(item.unit)}`} · ${round(item.kcal)} kcal</span><small>P ${round(item.protein)} · G ${round(item.fat)} · C ${round(item.carbs)}</small></button><button class="icon-btn danger-text" data-remove-food-item="${mi}:${ii}" aria-label="Eliminar">×</button></div>`).join('')}</div>`:'<div class="subtle meal-empty">'+(isFree?'Agrega una comida fuera del plan con cantidades y macros aproximados.':'Sin alimentos registrados.')+'</div>'}
+    ${!isFree?`<button class="btn ghost compact copy-meal" data-copy-yesterday="${mi}">Copiar de ayer</button>`:''}
   </section>`;
+}
+function openCheatMealSheet(mi){
+  const host=document.getElementById('foodSheetHost'); if(!host)return;
+  host.innerHTML=`<div class="workout-sheet-backdrop" data-close-food-sheet><div class="workout-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Comida libre</span><h3>Registrar aproximado</h3></div><button class="icon-btn icon-square" data-close-food-sheet>✕</button></div><form id="cheatMealForm"><div class="field"><label>Qué comiste</label><input name="name" placeholder="Ej. 2 dogos de fiesta" required></div><div class="field"><label>Cantidad / detalles</label><textarea name="detail" placeholder="Ej. 2 piezas, poco chorizo, cebolla, queso y aderezo"></textarea></div><div class="field"><label>Calorías estimadas</label><input name="kcal" type="number" min="0" step="1" required></div><div class="form-grid"><div class="field"><label>Proteína estimada (g)</label><input name="protein" type="number" min="0" step="0.1" value="0"></div><div class="field"><label>Grasa estimada (g)</label><input name="fat" type="number" min="0" step="0.1" value="0"></div><div class="field"><label>Carbohidratos estimados (g)</label><input name="carbs" type="number" min="0" step="0.1" value="0"></div></div><div class="notice warn">Puedes usar una estimación aproximada. Si solo conoces las calorías, deja los macros en 0 y al menos el total calórico quedará contabilizado.</div><button class="btn primary block" type="submit" style="margin-top:12px">Agregar comida libre</button></form></div></div>`;
+  host.querySelectorAll('[data-close-food-sheet]').forEach(x=>x.addEventListener('click',()=>host.innerHTML=''));
+  document.getElementById('cheatMealForm')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);const day=await getFoodDay(foodSelectedDate,true);const meal=day.meals[mi];if(!meal)return;meal.items.push({id:uid('item'),foodId:'',name:String(fd.get('name')||'Comida libre').trim(),detailText:String(fd.get('detail')||'').trim(),qty:1,unit:'aprox',baseQty:1,kcal:+fd.get('kcal')||0,protein:+fd.get('protein')||0,fat:+fd.get('fat')||0,carbs:+fd.get('carbs')||0,perBase:{kcal:+fd.get('kcal')||0,protein:+fd.get('protein')||0,fat:+fd.get('fat')||0,carbs:+fd.get('carbs')||0},manualEstimate:true,addedAt:Date.now()});day.updatedAt=Date.now();await put(STORE_FOOD_DAYS,day);host.innerHTML='';render();});
 }
 async function foodHistoryHTML(){
   const days=(await getAll(STORE_FOOD_DAYS)).filter(d=>(d.meals||[]).some(m=>(m.items||[]).length)).sort((a,b)=>b.date.localeCompare(a.date));
@@ -1065,6 +1104,7 @@ function bindFoodEvents(){
   document.querySelectorAll('[data-food-date]').forEach(b=>b.addEventListener('click',()=>{foodSelectedDate=addDays(foodSelectedDate,+b.dataset.foodDate);render();}));
   document.getElementById('foodDateInput')?.addEventListener('change',e=>{foodSelectedDate=e.target.value||today();render();});
   document.querySelectorAll('[data-add-food]').forEach(b=>b.addEventListener('click',()=>{foodPickerMealIndex=+b.dataset.addFood;foodPickerFoodId=null;foodScreen='picker';render();}));
+  document.querySelectorAll('[data-add-cheat]').forEach(b=>b.addEventListener('click',()=>openCheatMealSheet(+b.dataset.addCheat)));
   document.querySelectorAll('[data-remove-food-item]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const [mi,ii]=b.dataset.removeFoodItem.split(':').map(Number);removeFoodItem(mi,ii);}));
   document.querySelectorAll('[data-edit-food-item]').forEach(b=>b.addEventListener('click',()=>{const [mi,ii]=b.dataset.editFoodItem.split(':').map(Number);editFoodItem(mi,ii);}));
   document.querySelectorAll('[data-copy-yesterday]').forEach(b=>b.addEventListener('click',()=>copyMealFromYesterday(+b.dataset.copyYesterday)));
@@ -1199,6 +1239,25 @@ async function applyAppUpdate(){
   }
 }
 
+async function buildDailyReport(date){
+  const sessions=(await getAll(STORE_SESSIONS)).filter(s=>s.date===date).sort((a,b)=>a.createdAt-b.createdAt);
+  const day=await getFoodDay(date,false); const totals=day?foodDayTotals(day):emptyMacros(); const goal=await getNutritionGoal();
+  const measurements=(await getAll(STORE_MEASUREMENTS)).filter(m=>m.date<=date).sort((a,b)=>a.date.localeCompare(b.date)||a.createdAt-b.createdAt); const m=measurements.at(-1);
+  const lines=[`FIT LOG — ${fmtDate(date)}`];
+  if(m?.weight) lines.push(`Peso de referencia: ${m.weight} kg`);
+  lines.push('',`NUTRICIÓN`,`Calorías: ${round(totals.kcal)} / ${round(goal.targetCalories)} kcal`,`Proteína: ${round(totals.protein)} / ${round(goal.protein)} g`,`Grasa: ${round(totals.fat)} / ${round(goal.fat)} g`,`Carbohidratos: ${round(totals.carbs)} / ${round(goal.carbs)} g`);
+  if(day){for(const meal of day.meals||[]){if(!(meal.items||[]).length)continue;lines.push('',meal.name.toUpperCase());for(const it of meal.items){lines.push(`- ${it.name}: ${it.detailText||`${round(it.qty,2)} ${it.unit}`} · ${round(it.kcal)} kcal · P ${round(it.protein)} G ${round(it.fat)} C ${round(it.carbs)}`);}}}
+  lines.push('',`ENTRENAMIENTO`);
+  if(!sessions.length) lines.push('Sin entrenamiento guardado.');
+  for(const s of sessions){lines.push(`${s.routine} — ${s.overallFeeling||'sin sensación general'}`);for(const e of s.exercises||[]){const sets=(e.sets||[]).filter(st=>setHasData(st,!!e.splitSides));if(!sets.length)continue;lines.push(`• ${e.name}: ${sets.map(st=>formatSetText(st,!!e.splitSides)).join(' | ')}`);if(e.feeling)lines.push(`  Sensación: ${e.feeling}`);if(e.notes)lines.push(`  Nota: ${e.notes}`);}const c=s.cardio||{};if(Object.values(c).some(v=>String(v??'')!==''))lines.push(`Cardio: ${c.minutes||'—'} min · ${c.heartRate||'—'} bpm · inclinación ${c.incline||'—'}% · ${c.speed||'—'} km/h`);if(s.notes)lines.push(`Notas de sesión: ${s.notes}`);}
+  return lines.join('\n');
+}
+async function shareDailyReport(date){
+  const text=await buildDailyReport(date); const title=`Fit Log · ${fmtDate(date)}`;
+  if(navigator.share){try{await navigator.share({title,text});return;}catch(err){if(err?.name==='AbortError')return;}}
+  try{await navigator.clipboard.writeText(text);alert('Reporte copiado. Ya puedes pegarlo en Fit OS.');}
+  catch{const blob=new Blob([text],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`fit-log-${date}.txt`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
+}
 function bindViewEvents(){
   document.querySelectorAll('[data-routine]').forEach(b=>b.addEventListener('click',()=>startRoutine(b.dataset.routine)));
   document.querySelector('[data-resume-workout]')?.addEventListener('click',()=>{activeSessionDraft=loadWorkoutDraft();if(activeSessionDraft)renderWorkout();});
@@ -1206,7 +1265,9 @@ function bindViewEvents(){
   document.querySelector('[data-action="food-now"]')?.addEventListener('click',()=>setView('food'));
   document.querySelector('[data-action="train-now"]')?.addEventListener('click',()=>setView('train'));
   document.querySelectorAll('[data-action="progress-now"]').forEach(b=>b.addEventListener('click',()=>setView('progress')));
-  document.querySelector('[data-action="history"]')?.addEventListener('click',()=>{currentView='history';render();});
+  document.querySelector('[data-action="history"]')?.addEventListener('click',()=>{currentView='history';historyTab='sessions';render();});
+  document.querySelector('[data-train-history]')?.addEventListener('click',()=>{currentView='history';historyTab='sessions';render();});
+  document.querySelectorAll('[data-action="daily-report"]')?.forEach(b=>b.addEventListener('click',()=>shareDailyReport(b.dataset.reportDate||today())));
   document.querySelector('[data-action="history-back"]')?.addEventListener('click',()=>setView('home'));
   const settingsSheet=document.getElementById('settingsSheet');
   document.querySelector('[data-action="open-settings"]')?.addEventListener('click',()=>settingsSheet?.classList.remove('hide'));
@@ -1233,8 +1294,8 @@ window.addEventListener('offline',()=>document.querySelectorAll('.status').forEa
 
 if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
 openDB().then(seedStarterFoods).then(async()=>{
-  activeSessionDraft=loadWorkoutDraft();
-  if(activeSessionDraft) renderWorkout(); else await render();
+  activeSessionDraft=loadWorkoutDraft() || await loadWorkoutDraftDB();
+  if(activeSessionDraft){persistWorkoutDraft();renderWorkout();} else await render();
 }).catch(err=>{document.getElementById('app').innerHTML=`<main class="screen"><div class="card"><h2>Error al abrir la base local</h2><p class="subtle">${esc(err.message)}</p></div></main>`;});
 window.addEventListener('pagehide',persistWorkoutDraft);
 document.addEventListener('visibilitychange',()=>{ if(document.hidden) persistWorkoutDraft(); else if(activeSessionDraft){ updateRestTimerUI(); } });

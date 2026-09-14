@@ -1,6 +1,6 @@
 {
-  "version": "9.5",
+  "version": "9.6",
   "published": "2026-09-13",
   "name": "Fit Log",
-  "notes": "Entrenamiento con autoguardado persistente, cambio de ejercicio al tocar el título, resultados izquierda/derecha, precarga del último entrenamiento, propagación de peso, calculadora lb/kg, temporizador de 3 min y cardio al final."
+  "notes": "Inicio sin cintura, historial accesible desde Entrenar, ejercicios personalizados, reporte diario compartible, comida libre aproximada y respaldo doble del entrenamiento activo."
 }
