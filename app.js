@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '9.9';
+const APP_VERSION = '10.0';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -1046,11 +1046,41 @@ function foodQtyStep(unit){
   if(unit==='scoop' || unit==='cucharadita') return .5;
   return 1;
 }
+function foodUnitLabel(unit,qty){
+  const n=Math.abs(+qty||0);
+  if(unit==='pieza') return n===1?'pieza':'piezas';
+  if(unit==='cucharadita') return n===1?'cucharadita':'cucharaditas';
+  if(unit==='taza') return n===1?'taza':'tazas';
+  if(unit==='scoop') return n===1?'scoop':'scoops';
+  return unit;
+}
 function mealHTML(meal,mi){
-  const mt=meal.items.reduce((a,b)=>sumMacros(a,b),emptyMacros()); const isFree=meal.freeMeal || /^Comida libre(?:\s+\d+)?$/i.test(meal.name);
-  return `<section class="card meal-card meal-${mi}"><div class="row between meal-header"><div><div class="section-kicker">${isFree?'Estimación':'Comida '+(mi+1)}</div><h3>${esc(meal.name)}</h3><div class="subtle">${round(mt.kcal)} kcal · P ${round(mt.protein)} · G ${round(mt.fat)} · C ${round(mt.carbs)}</div></div><div class="meal-actions">${isFree?`<button class="btn primary compact" data-add-cheat="${mi}">+ Aproximado</button>`:`<button class="btn primary compact" data-add-food="${mi}">+ Agregar</button>`}</div></div>
-    ${meal.items.length?`<div class="food-items">${meal.items.map((item,ii)=>{const manual=!!item.manualEstimate;return `<div class="food-item food-item-inline"><button class="food-item-main" data-edit-food-item="${mi}:${ii}"><strong>${esc(item.name)}</strong><span>${item.detailText?esc(item.detailText):`${round(item.qty,2)} ${esc(item.unit)}`} · ${round(item.kcal)} kcal</span><small>P ${round(item.protein)} · G ${round(item.fat)} · C ${round(item.carbs)}</small></button>${manual?'':`<div class="qty-stepper" aria-label="Cambiar porción"><button type="button" data-food-qty-step="${mi}:${ii}:-1">−</button><span>${round(item.qty,2)} ${esc(item.unit)}</span><button type="button" data-food-qty-step="${mi}:${ii}:1">+</button></div>`}<button class="icon-btn danger-text" data-remove-food-item="${mi}:${ii}" aria-label="Eliminar">×</button></div>`}).join('')}</div>`:'<div class="subtle meal-empty">'+(isFree?'Agrega una comida fuera del plan con cantidades y macros aproximados.':'Sin alimentos registrados.')+'</div>'}
-    ${!isFree?`<button class="btn ghost compact copy-meal" data-copy-yesterday="${mi}">Copiar de ayer</button>`:''}
+  const mt=meal.items.reduce((a,b)=>sumMacros(a,b),emptyMacros());
+  const isFree=meal.freeMeal || /^Comida libre(?:\s+\d+)?$/i.test(meal.name);
+  const rows=meal.items.map((item,ii)=>{
+    const manual=!!item.manualEstimate;
+    if(manual){
+      return `<div class="compact-food-row"><button class="compact-food-name" data-edit-food-item="${mi}:${ii}">${esc(item.name)}</button><button class="compact-approx" data-edit-food-item="${mi}:${ii}">Aprox.</button><button class="compact-delete" data-remove-food-item="${mi}:${ii}" aria-label="Eliminar ${esc(item.name)}">×</button></div>`;
+    }
+    const unitLabel=foodUnitLabel(item.unit,item.qty);
+    return `<div class="compact-food-row">
+      <button class="compact-food-name" data-edit-food-item="${mi}:${ii}">${esc(item.name)}</button>
+      <div class="compact-qty" aria-label="Cantidad de ${esc(item.name)}">
+        <button type="button" data-food-qty-step="${mi}:${ii}:-1" aria-label="Disminuir">−</button>
+        <input type="number" inputmode="decimal" step="any" min="0.01" value="${round(item.qty,2)}" data-food-qty-input="${mi}:${ii}" aria-label="Cantidad">
+        <button type="button" data-food-qty-step="${mi}:${ii}:1" aria-label="Aumentar">+</button>
+      </div>
+      <span class="compact-unit">${esc(unitLabel)}</span>
+      <button class="compact-delete" data-remove-food-item="${mi}:${ii}" aria-label="Eliminar ${esc(item.name)}">×</button>
+    </div>`;
+  }).join('');
+  return `<section class="card meal-card meal-${mi} compact-meal-card">
+    <div class="compact-meal-header">
+      <div class="compact-meal-title"><h3>${esc(meal.name)}</h3><strong>${round(mt.kcal)} kcal</strong></div>
+      <div class="meal-actions">${isFree?`<button class="btn primary compact" data-add-cheat="${mi}">+ Agregar</button>`:`<button class="btn primary compact" data-add-food="${mi}">+ Agregar</button>`}</div>
+    </div>
+    ${meal.items.length?`<div class="compact-food-list">${rows}</div>`:`<div class="subtle meal-empty">${isFree?'Agrega una comida aproximada.':'Sin alimentos registrados.'}</div>`}
+    ${!isFree?`<button class="btn ghost compact copy-meal compact-copy" data-copy-yesterday="${mi}">Copiar de ayer</button>`:''}
   </section>`;
 }
 function openCheatMealSheet(mi){
@@ -1224,6 +1254,11 @@ function queueNutritionAutoSave(){
   },250);
 }
 
+async function renderFoodPreserveScroll(){
+  const y=window.scrollY;
+  await render();
+  requestAnimationFrame(()=>window.scrollTo({top:y,left:0,behavior:'auto'}));
+}
 function bindFoodEvents(){
   document.querySelectorAll('[data-food-tab]').forEach(b=>b.addEventListener('click',()=>{foodTab=b.dataset.foodTab;foodScreen='main';render();}));
   document.querySelectorAll('[data-food-date]').forEach(b=>b.addEventListener('click',()=>{foodSelectedDate=addDays(foodSelectedDate,+b.dataset.foodDate);render();}));
@@ -1232,13 +1267,12 @@ function bindFoodEvents(){
   document.querySelectorAll('[data-add-cheat]').forEach(b=>b.addEventListener('click',()=>openCheatMealSheet(+b.dataset.addCheat)));
   document.querySelector('[data-add-extra-meal]')?.addEventListener('click',openAddMealSheet);
   document.querySelectorAll('[data-remove-food-item]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const [mi,ii]=b.dataset.removeFoodItem.split(':').map(Number);removeFoodItem(mi,ii);}));
-  document.querySelectorAll('[data-food-qty-step]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const [mi,ii,dir]=b.dataset.foodQtyStep.split(':').map(Number);adjustFoodItemQty(mi,ii,dir);}));
+  document.querySelectorAll('[data-food-qty-step]').forEach(b=>b.addEventListener('click',async e=>{e.stopPropagation();const [mi,ii,dir]=b.dataset.foodQtyStep.split(':').map(Number);await adjustFoodItemQty(mi,ii,dir);await renderFoodPreserveScroll();}));
   document.querySelectorAll('[data-food-qty-input]').forEach(inp=>{
     inp.addEventListener('click',e=>e.stopPropagation());
-    inp.addEventListener('focus',e=>{e.target.select();});
-    inp.addEventListener('keydown',async e=>{ if(e.key==='Enter'){ e.preventDefault(); const [mi,ii]=e.target.dataset.foodQtyInput.split(':').map(Number); const ok=await setFoodItemQty(mi,ii,e.target.value); if(ok) render(); else e.target.select(); }});
-    inp.addEventListener('change',async e=>{const [mi,ii]=e.target.dataset.foodQtyInput.split(':').map(Number); const ok=await setFoodItemQty(mi,ii,e.target.value); if(ok) render(); else e.target.value=e.target.defaultValue;});
-    inp.addEventListener('blur',async e=>{const [mi,ii]=e.target.dataset.foodQtyInput.split(':').map(Number); const ok=await setFoodItemQty(mi,ii,e.target.value); if(ok) render(); else e.target.value=e.target.defaultValue;});
+    inp.addEventListener('focus',e=>e.currentTarget.select());
+    inp.addEventListener('change',async e=>{const el=e.currentTarget;const [mi,ii]=el.dataset.foodQtyInput.split(':').map(Number);const ok=await setFoodItemQty(mi,ii,el.value);if(ok)await renderFoodPreserveScroll();else el.select();});
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.currentTarget.blur();}});
   });
   document.querySelectorAll('[data-edit-food-item]').forEach(b=>b.addEventListener('click',()=>{const [mi,ii]=b.dataset.editFoodItem.split(':').map(Number);editFoodItem(mi,ii);}));
   document.querySelectorAll('[data-copy-yesterday]').forEach(b=>b.addEventListener('click',()=>copyMealFromYesterday(+b.dataset.copyYesterday)));

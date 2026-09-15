@@ -1,6 +1,6 @@
 {
-  "version": "9.9",
+  "version": "10.0",
   "published": "2026-09-14",
   "name": "Fit Log",
-  "notes": "Lista de comida simplificada: nombre a la izquierda y cantidad editable al lado, sin repetir macros en cada alimento."
+  "notes": "Comidas compactas: encabezado con nombre y kcal, alimentos en una sola línea con cantidad editable, botones +/- y actualización del resumen manteniendo la posición en pantalla."
 }

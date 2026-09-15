@@ -421,3 +421,39 @@ body{font-size:16px}
   .qty-inline input{width:56px;font-size:17px}
   .qty-inline span{font-size:14px}
 }
+
+
+/* v10.0 — comidas compactas tipo lista */
+.compact-meal-card{padding:18px 18px 14px!important}
+.compact-meal-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 0 10px}
+.compact-meal-title{display:flex;align-items:baseline;gap:10px;min-width:0}
+.compact-meal-title h3{margin:0!important;font-size:24px!important;letter-spacing:-.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.compact-meal-title strong{font-size:15px;color:var(--muted);white-space:nowrap}
+.compact-food-list{display:flex;flex-direction:column;margin-top:2px}
+.compact-food-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto 28px;align-items:center;gap:7px;min-height:54px;border-top:1px solid var(--line);padding:7px 0}
+.compact-food-row:first-child{border-top:0}
+.compact-food-name{min-width:0;border:0;background:transparent;padding:8px 2px;text-align:left;color:var(--text);font-size:17px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.compact-qty{display:grid;grid-template-columns:30px 48px 30px;height:38px;border:1px solid #dfe5ed;border-radius:12px;background:#f7f9fc;overflow:hidden}
+.compact-qty button{border:0;background:transparent;color:#536078;font-size:20px;font-weight:800;padding:0;line-height:1}
+.compact-qty button:active{background:#eaf0f7}
+.compact-qty input{width:100%;min-width:0;border:0!important;background:transparent!important;color:var(--text)!important;text-align:center;font-size:16px;font-weight:800;padding:0!important;outline:none;appearance:textfield;-moz-appearance:textfield}
+.compact-qty input::-webkit-outer-spin-button,.compact-qty input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.compact-unit{min-width:46px;font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap}
+.compact-delete{width:28px;height:34px;border:0;background:transparent;color:#c14d5a;font-size:20px;padding:0;border-radius:9px}
+.compact-delete:active{background:#fff0f2}
+.compact-approx{height:38px;border:1px dashed #d8dee9;background:#fafbfc;color:#5f6b80;border-radius:12px;padding:0 12px;font-weight:700}
+.compact-copy{margin-top:10px}
+@media(max-width:430px){
+  .compact-meal-card{padding:16px 14px 12px!important}
+  .compact-meal-header{gap:8px}
+  .compact-meal-title{gap:7px}
+  .compact-meal-title h3{font-size:22px!important}
+  .compact-meal-title strong{font-size:13px}
+  .compact-meal-header .btn{padding:10px 12px;font-size:13px}
+  .compact-food-row{grid-template-columns:minmax(92px,1fr) auto auto 24px;gap:5px;min-height:52px}
+  .compact-food-name{font-size:16px}
+  .compact-qty{grid-template-columns:28px 42px 28px;height:36px}
+  .compact-qty input{font-size:15px}
+  .compact-unit{min-width:40px;font-size:12px}
+  .compact-delete{width:24px;font-size:18px}
+}
