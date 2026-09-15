@@ -1,6 +1,6 @@
 {
-  "version": "9.8",
+  "version": "9.9",
   "published": "2026-09-14",
   "name": "Fit Log",
-  "notes": "Peso diario separado de medidas corporales semanales, datos personales fijos en Ajustes, comida libre opcional y controles rápidos de porción."
+  "notes": "Lista de comida simplificada: nombre a la izquierda y cantidad editable al lado, sin repetir macros en cada alimento."
 }

@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '9.8';
+const APP_VERSION = '9.9';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -1145,6 +1145,11 @@ async function adjustFoodItemQty(mi,ii,direction){
   const step=foodQtyStep(item.unit); const old=+item.qty||step; const qty=Math.max(step,Math.round((old + direction*step)*100)/100);
   const scale=qty/(+item.baseQty||1); item.qty=qty; item.kcal=(+item.perBase.kcal||0)*scale; item.protein=(+item.perBase.protein||0)*scale; item.fat=(+item.perBase.fat||0)*scale; item.carbs=(+item.perBase.carbs||0)*scale; day.updatedAt=Date.now(); await put(STORE_FOOD_DAYS,day); render();
 }
+async function setFoodItemQty(mi,ii,value){
+  const day=await getFoodDay(foodSelectedDate,false); const item=day?.meals?.[mi]?.items?.[ii]; if(!item || item.manualEstimate) return false;
+  const qty=+value; if(!(qty>0)) return false;
+  const scale=qty/(+item.baseQty||1); item.qty=qty; item.kcal=(+item.perBase.kcal||0)*scale; item.protein=(+item.perBase.protein||0)*scale; item.fat=(+item.perBase.fat||0)*scale; item.carbs=(+item.perBase.carbs||0)*scale; day.updatedAt=Date.now(); await put(STORE_FOOD_DAYS,day); return true;
+}
 async function editFoodItem(mi,ii){
   const day=await getFoodDay(foodSelectedDate,false); const item=day?.meals?.[mi]?.items?.[ii]; if(!item) return;
   const v=prompt(`Cantidad de ${item.name} (${item.unit})`,item.qty); if(v===null) return; const qty=+v; if(!(qty>0)){alert('Cantidad no válida.');return;}
@@ -1228,6 +1233,13 @@ function bindFoodEvents(){
   document.querySelector('[data-add-extra-meal]')?.addEventListener('click',openAddMealSheet);
   document.querySelectorAll('[data-remove-food-item]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const [mi,ii]=b.dataset.removeFoodItem.split(':').map(Number);removeFoodItem(mi,ii);}));
   document.querySelectorAll('[data-food-qty-step]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const [mi,ii,dir]=b.dataset.foodQtyStep.split(':').map(Number);adjustFoodItemQty(mi,ii,dir);}));
+  document.querySelectorAll('[data-food-qty-input]').forEach(inp=>{
+    inp.addEventListener('click',e=>e.stopPropagation());
+    inp.addEventListener('focus',e=>{e.target.select();});
+    inp.addEventListener('keydown',async e=>{ if(e.key==='Enter'){ e.preventDefault(); const [mi,ii]=e.target.dataset.foodQtyInput.split(':').map(Number); const ok=await setFoodItemQty(mi,ii,e.target.value); if(ok) render(); else e.target.select(); }});
+    inp.addEventListener('change',async e=>{const [mi,ii]=e.target.dataset.foodQtyInput.split(':').map(Number); const ok=await setFoodItemQty(mi,ii,e.target.value); if(ok) render(); else e.target.value=e.target.defaultValue;});
+    inp.addEventListener('blur',async e=>{const [mi,ii]=e.target.dataset.foodQtyInput.split(':').map(Number); const ok=await setFoodItemQty(mi,ii,e.target.value); if(ok) render(); else e.target.value=e.target.defaultValue;});
+  });
   document.querySelectorAll('[data-edit-food-item]').forEach(b=>b.addEventListener('click',()=>{const [mi,ii]=b.dataset.editFoodItem.split(':').map(Number);editFoodItem(mi,ii);}));
   document.querySelectorAll('[data-copy-yesterday]').forEach(b=>b.addEventListener('click',()=>copyMealFromYesterday(+b.dataset.copyYesterday)));
   document.querySelector('[data-save-food-template]')?.addEventListener('click',saveFoodTemplate);

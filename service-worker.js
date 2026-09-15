@@ -1,10 +1,10 @@
-const APP_VERSION = '9.8';
-const CACHE = 'fit-log-shell-v9.8-daily-weight';
+const APP_VERSION = '9.9';
+const CACHE = 'fit-log-shell-v9.9-food-inline';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=9.8',
-  './app.js?v=9.8',
+  './styles.css?v=9.9',
+  './app.js?v=9.9',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',
