@@ -1,10 +1,10 @@
-const APP_VERSION = '9.7';
-const CACHE = 'fit-log-shell-v9.7-persistence-refinements';
+const APP_VERSION = '9.8';
+const CACHE = 'fit-log-shell-v9.8-daily-weight';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=9.7',
-  './app.js?v=9.7',
+  './styles.css?v=9.8',
+  './app.js?v=9.8',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',

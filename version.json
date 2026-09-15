@@ -1,6 +1,6 @@
 {
-  "version": "9.7",
+  "version": "9.8",
   "published": "2026-09-14",
   "name": "Fit Log",
-  "notes": "Mediciones persistentes, reporte con medidas, selección directa de cantidad de alimento, pesos en cascada, RIR 0 por defecto y snacks/comidas adicionales."
+  "notes": "Peso diario separado de medidas corporales semanales, datos personales fijos en Ajustes, comida libre opcional y controles rápidos de porción."
 }
