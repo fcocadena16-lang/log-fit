@@ -1,6 +1,6 @@
 {
-  "version": "9.6",
-  "published": "2026-09-13",
+  "version": "9.7",
+  "published": "2026-09-14",
   "name": "Fit Log",
-  "notes": "Inicio sin cintura, historial accesible desde Entrenar, ejercicios personalizados, reporte diario compartible, comida libre aproximada y respaldo doble del entrenamiento activo."
+  "notes": "Mediciones persistentes, reporte con medidas, selección directa de cantidad de alimento, pesos en cascada, RIR 0 por defecto y snacks/comidas adicionales."
 }

@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '9.6';
+const APP_VERSION = '9.7';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -309,9 +309,22 @@ async function importBackupFile(file){
   }catch(err){ console.error(err); if(msg) msg.textContent=err.message||'No se pudo importar el respaldo.'; alert(err.message||'No se pudo importar el respaldo.'); }
 }
 
-async function latestMeasurement(){
-  const all=await getAll(STORE_MEASUREMENTS); return all.sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt)[0]||null;
+async function effectiveMeasurementAt(referenceDate=today()){
+  const all=(await getAll(STORE_MEASUREMENTS))
+    .filter(m=>!referenceDate || !m.date || m.date<=referenceDate)
+    .sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt);
+  if(!all.length) return null;
+  const latest=all[0];
+  const effective={id:latest.id,date:latest.date,createdAt:latest.createdAt};
+  const fields=['height','birthDate',...MEASURE_FIELDS.map(([k])=>k)];
+  for(const field of fields){
+    const row=all.find(m=>m?.[field]!==undefined && m?.[field]!==null && String(m[field]).trim()!=='');
+    if(row) effective[field]=row[field];
+  }
+  effective.age=ageFromBirthDate(effective.birthDate,referenceDate||today());
+  return effective;
 }
+async function latestMeasurement(){ return effectiveMeasurementAt(today()); }
 function ageFromBirthDate(birthDate, referenceDate=today()){
   if(!birthDate) return null;
   const b=String(birthDate).slice(0,10).split('-').map(Number);
@@ -321,18 +334,15 @@ function ageFromBirthDate(birthDate, referenceDate=today()){
   if(r[1]<b[1] || (r[1]===b[1] && r[2]<b[2])) age--;
   return age>=0 && age<130 ? age : null;
 }
-async function measurementReference(){
-  const all=(await getAll(STORE_MEASUREMENTS)).sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt);
-  const latest=all[0]||null;
-  const firstValue=field=>{
-    const row=all.find(m=>m?.[field]!==undefined && m?.[field]!==null && String(m[field]).trim()!=='');
-    return row ? row[field] : null;
+async function measurementReference(referenceDate=today()){
+  const latest=await effectiveMeasurementAt(referenceDate);
+  return {
+    latest,
+    weight:num(latest?.weight),
+    height:num(latest?.height),
+    birthDate:latest?.birthDate||'',
+    age:latest?.age??ageFromBirthDate(latest?.birthDate,referenceDate)
   };
-  const weight=num(firstValue('weight'));
-  const height=num(firstValue('height'));
-  const birthDate=firstValue('birthDate')||'';
-  const age=ageFromBirthDate(birthDate,today());
-  return {latest,weight,height,birthDate,age};
 }
 async function latestExerciseRecord(name){
   const sessions=(await getAll(STORE_SESSIONS)).sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt);
@@ -360,8 +370,11 @@ async function render(){
 
 async function homeHTML(){
   const measurements=(await getAll(STORE_MEASUREMENTS)).sort((a,b)=>a.date.localeCompare(b.date)||a.createdAt-b.createdAt);
-  const m=measurements.at(-1)||null;
-  const prevM=measurements.at(-2)||null;
+  const m=await effectiveMeasurementAt(today());
+  const latestRaw=measurements.at(-1)||null;
+  const weightRows=measurements.filter(x=>num(x.weight)!==null);
+  const currentWeightRow=weightRows.at(-1)||null;
+  const prevWeightRow=weightRows.at(-2)||null;
   const sessions=(await getAll(STORE_SESSIONS)).sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt);
   const recent=sessions.slice(0,3);
   const weekStart=addDays(today(),-6);
@@ -374,10 +387,10 @@ async function homeHTML(){
   const proteinPct=goal.protein?Math.min(100,Math.max(0,round((totals.protein/goal.protein)*100))):0;
   const fatPct=goal.fat?Math.min(100,Math.max(0,round((totals.fat/goal.fat)*100))):0;
   const carbsPct=goal.carbs?Math.min(100,Math.max(0,round((totals.carbs/goal.carbs)*100))):0;
-  const weightDelta=(m?.weight && prevM?.weight)?round((+m.weight)-(+prevM.weight),1):null;
-  const firstWeight=measurements.find(x=>num(x.weight)!==null);
+  const weightDelta=(currentWeightRow?.weight && prevWeightRow?.weight)?round((+currentWeightRow.weight)-(+prevWeightRow.weight),1):null;
+  const firstWeight=weightRows[0]||null;
   const totalWeightDelta=(m?.weight && firstWeight?.weight)?round((+m.weight)-(+firstWeight.weight),1):null;
-  const daysSinceMeasure=m?.date?Math.max(0,Math.floor((new Date(today()+'T12:00:00')-new Date(m.date+'T12:00:00'))/86400000)):null;
+  const daysSinceMeasure=latestRaw?.date?Math.max(0,Math.floor((new Date(today()+'T12:00:00')-new Date(latestRaw.date+'T12:00:00'))/86400000)):null;
   const dateLabel=new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
   const niceDate=dateLabel.charAt(0).toUpperCase()+dateLabel.slice(1);
   return `<main class="screen home-screen dashboard-home">
@@ -531,10 +544,15 @@ async function startRoutine(name){
 function sideSetText(st,side){
   const p=side==='left'?'left':'right';
   const label=side==='left'?'Izq':'Der';
-  return `${label} ${st?.[p+'Weight']||'—'} ${st?.unit||''} × ${st?.[p+'Reps']||'—'}${String(st?.[p+'Rir']??'')!==''?` @${st[p+'Rir']} RIR`:''}`;
+  const hasData=String(st?.[p+'Weight']??'')!=='' || String(st?.[p+'Reps']??'')!=='' || String(st?.[p+'Rir']??'')!=='';
+  const rir=hasData && String(st?.[p+'Rir']??'')===''?'0':st?.[p+'Rir'];
+  return `${label} ${st?.[p+'Weight']||'—'} ${st?.unit||''} × ${st?.[p+'Reps']||'—'}${hasData?` @${rir} RIR`:''}`;
 }
 function formatSetText(st,splitSides=false){
-  return splitSides?`${sideSetText(st,'left')} / ${sideSetText(st,'right')}`:`${st?.weight||'—'} ${st?.unit||''} × ${st?.reps||'—'}${String(st?.rir??'')!==''?` @${st.rir} RIR`:''}`;
+  if(splitSides) return `${sideSetText(st,'left')} / ${sideSetText(st,'right')}`;
+  const hasData=String(st?.weight??'')!=='' || String(st?.reps??'')!=='' || String(st?.rir??'')!=='';
+  const rir=hasData && String(st?.rir??'')===''?'0':st?.rir;
+  return `${st?.weight||'—'} ${st?.unit||''} × ${st?.reps||'—'}${hasData?` @${rir} RIR`:''}`;
 }
 function formatPrevious(rec){
   const split=!!rec.exercise.splitSides;
@@ -639,11 +657,13 @@ function updateWorkoutProgress(){
   const p=completionPct(activeSessionDraft); const bar=document.querySelector('.progressbar>div'); if(bar) bar.style.width=p+'%'; const pct=document.querySelector('.workout-overview strong'); if(pct) pct.textContent=p+'%';
 }
 function propagateWeight(ei,si,k,value){
-  const ex=activeSessionDraft.exercises[ei]; if(!ex || si!==0) return;
-  const sidePrefix=k.startsWith('left')?'left':k.startsWith('right')?'right':'';
-  const autoKey=sidePrefix?`_${sidePrefix}WeightAuto`:'_weightAuto';
-  const targetKey=sidePrefix?`${sidePrefix}Weight`:'weight';
-  ex.sets.forEach((st,j)=>{ if(j===0) return; if(st[autoKey]!==false){ st[targetKey]=value; const q=sidePrefix?`[data-side-k="${targetKey}"][data-ei="${ei}"][data-si="${j}"]`:`[data-k="weight"][data-ei="${ei}"][data-si="${j}"]`; const input=document.querySelector(q); if(input) input.value=value; }});
+  const ex=activeSessionDraft.exercises[ei]; if(!ex) return;
+  const targetKey=k.startsWith('left')?'leftWeight':k.startsWith('right')?'rightWeight':'weight';
+  for(let j=si+1;j<ex.sets.length;j++){
+    ex.sets[j][targetKey]=value;
+    const q=targetKey==='weight'?`[data-k="weight"][data-ei="${ei}"][data-si="${j}"]`:`[data-side-k="${targetKey}"][data-ei="${ei}"][data-si="${j}"]`;
+    const input=document.querySelector(q); if(input) input.value=value;
+  }
 }
 function bindWorkoutEvents(){
   document.querySelector('[data-action="close-workout"]')?.addEventListener('click',()=>{ if(confirm('¿Salir y descartar este entrenamiento? Si solo cierras la app, el entrenamiento se conserva automáticamente.')){activeSessionDraft=null;clearWorkoutDraft();stopRestTimer();document.getElementById('bottomNav').classList.remove('hide');setView('train');} });
@@ -651,12 +671,12 @@ function bindWorkoutEvents(){
   document.getElementById('overallFeeling')?.addEventListener('change',e=>{activeSessionDraft.overallFeeling=e.target.value;persistWorkoutDraft();});
   document.getElementById('sessionNotes')?.addEventListener('input',e=>{activeSessionDraft.notes=e.target.value;persistWorkoutDraft();});
   document.querySelectorAll('[data-cardio]').forEach(el=>el.addEventListener('input',e=>{activeSessionDraft.cardio[e.target.dataset.cardio]=e.target.value;persistWorkoutDraft();}));
-  document.querySelectorAll('[data-k]').forEach(el=>el.addEventListener('input',e=>{const {ei,si,k}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei],st=ex.sets[+si];st[k]=e.target.value;if(k==='weight'){if(+si>0)st._weightAuto=false;else propagateWeight(+ei,+si,k,e.target.value);}if(k==='unit' && +si===0){ex.sets.forEach((x,j)=>{if(j>0&&x._weightAuto!==false)x.unit=e.target.value;});}persistWorkoutDraft();updateWorkoutProgress();}));
-  document.querySelectorAll('[data-side-k]').forEach(el=>el.addEventListener('input',e=>{const {ei,si,sideK,side}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei],st=ex.sets[+si];st[sideK]=e.target.value;if(sideK.endsWith('Weight')){const autoKey=side==='left'?'_leftWeightAuto':'_rightWeightAuto';if(+si>0)st[autoKey]=false;else propagateWeight(+ei,+si,sideK,e.target.value);}persistWorkoutDraft();updateWorkoutProgress();}));
+  document.querySelectorAll('[data-k]').forEach(el=>el.addEventListener('input',e=>{const {ei,si,k}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei],st=ex.sets[+si];st[k]=e.target.value;if(k==='weight') propagateWeight(+ei,+si,k,e.target.value);if(k==='unit' && +si===0){ex.sets.forEach((x,j)=>{if(j>0&&x._weightAuto!==false)x.unit=e.target.value;});}persistWorkoutDraft();updateWorkoutProgress();}));
+  document.querySelectorAll('[data-side-k]').forEach(el=>el.addEventListener('input',e=>{const {ei,si,sideK,side}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei],st=ex.sets[+si];st[sideK]=e.target.value;if(sideK.endsWith('Weight')) propagateWeight(+ei,+si,sideK,e.target.value);persistWorkoutDraft();updateWorkoutProgress();}));
   document.querySelectorAll('[data-side-unit]').forEach(el=>el.addEventListener('change',e=>{const {ei,si}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei];ex.sets[+si].unit=e.target.value;if(+si===0)ex.sets.forEach((x,j)=>{if(j>0)x.unit=e.target.value;});persistWorkoutDraft();}));
   document.querySelectorAll('[data-feeling]').forEach(el=>el.addEventListener('change',e=>{activeSessionDraft.exercises[+e.target.dataset.feeling].feeling=e.target.value;persistWorkoutDraft();}));
   document.querySelectorAll('[data-notes]').forEach(el=>el.addEventListener('input',e=>{activeSessionDraft.exercises[+e.target.dataset.notes].notes=e.target.value;persistWorkoutDraft();}));
-  document.querySelectorAll('[data-add-set]').forEach(b=>b.addEventListener('click',()=>{const i=+b.dataset.addSet;const e=activeSessionDraft.exercises[i];const first=e.sets[0]||cloneSetForDraft(null,e.defaultUnit);const st=cloneSetForDraft(null,first.unit||e.defaultUnit);st.n=e.sets.length+1;st.weight=first.weight||'';st.leftWeight=first.leftWeight||'';st.rightWeight=first.rightWeight||'';e.sets.push(st);persistWorkoutDraft();renderWorkout();}));
+  document.querySelectorAll('[data-add-set]').forEach(b=>b.addEventListener('click',()=>{const i=+b.dataset.addSet;const e=activeSessionDraft.exercises[i];const previous=e.sets.at(-1)||cloneSetForDraft(null,e.defaultUnit);const st=cloneSetForDraft(null,previous.unit||e.defaultUnit);st.n=e.sets.length+1;st.weight=previous.weight||'';st.leftWeight=previous.leftWeight||'';st.rightWeight=previous.rightWeight||'';e.sets.push(st);persistWorkoutDraft();renderWorkout();}));
   document.querySelectorAll('[data-remove-set]').forEach(b=>b.addEventListener('click',()=>{const [ei,si]=b.dataset.removeSet.split(':').map(Number);const e=activeSessionDraft.exercises[ei];if(e.sets.length===1)return;e.sets.splice(si,1);e.sets.forEach((x,n)=>x.n=n+1);persistWorkoutDraft();renderWorkout();}));
   document.querySelectorAll('[data-toggle-sides]').forEach(b=>b.addEventListener('click',()=>toggleExerciseSides(+b.dataset.toggleSides)));
   document.querySelectorAll('[data-change-exercise]').forEach(b=>b.addEventListener('click',()=>openExerciseSwapSheet(+b.dataset.changeExercise)));
@@ -714,7 +734,20 @@ function openTimerSheet(){
 }
 function cleanSessionForSave(session){
   const s=clone(session);
-  for(const e of s.exercises||[]) for(const st of e.sets||[]) for(const k of Object.keys(st)) if(k.startsWith('_')) delete st[k];
+  for(const e of s.exercises||[]){
+    for(const st of e.sets||[]){
+      if(e.splitSides){
+        for(const side of ['left','right']){
+          const hasSideData=String(st?.[side+'Weight']??'')!=='' || String(st?.[side+'Reps']??'')!=='';
+          if(hasSideData && String(st?.[side+'Rir']??'')==='') st[side+'Rir']='0';
+        }
+      }else{
+        const hasMainData=String(st?.weight??'')!=='' || String(st?.reps??'')!=='';
+        if(hasMainData && String(st?.rir??'')==='') st.rir='0';
+      }
+      for(const k of Object.keys(st)) if(k.startsWith('_')) delete st[k];
+    }
+  }
   return s;
 }
 async function saveSession(){
@@ -744,7 +777,7 @@ async function measureHTML(){
         </div>
         <div class="age-display simple-age"><span>Edad :</span><strong id="calculatedAge">${age!==null?`${age} años`:'—'}</strong></div>
       </div>
-      <div class="form-grid">${MEASURE_FIELDS.map(([k,l,u])=>`<div class="field"><label>${l} <span>${u}</span></label><input name="${k}" inputmode="decimal" type="number" step="0.1" placeholder="${prev?.[k]??''}"></div>`).join('')}</div>
+      <div class="form-grid">${MEASURE_FIELDS.map(([k,l,u])=>`<div class="field"><label>${l} <span>${u}</span></label><input name="${k}" inputmode="decimal" type="number" step="0.1" value="${esc(prev?.[k]??'')}"></div>`).join('')}</div>
       <div class="field"><label>Notas</label><textarea name="notes" placeholder="Condiciones de medición, observaciones…"></textarea></div>
       <button class="btn primary block" type="submit">Guardar mediciones</button>
     </form>
@@ -758,6 +791,9 @@ async function saveMeasurement(form){
   if(!obj.date) obj.date=today();
   if(!String(obj.height||'').trim() && previousRef.height!==null) obj.height=String(previousRef.height);
   if(!String(obj.birthDate||'').trim() && previousRef.birthDate) obj.birthDate=previousRef.birthDate;
+  for(const [k] of MEASURE_FIELDS){
+    if(!String(obj[k]??'').trim() && previousRef.latest?.[k]!==undefined && previousRef.latest?.[k]!==null && String(previousRef.latest[k]).trim()!=='') obj[k]=String(previousRef.latest[k]);
+  }
   await put(STORE_MEASUREMENTS,obj);
   // En modo automático, esto sincroniza inmediatamente peso/estatura/edad y recalcula macros.
   await getNutritionGoal();
@@ -843,6 +879,17 @@ async function getFoodDay(date,create=false){
   if(day){const normalized=normalizeFoodDay(day);day=normalized.day;if(normalized.changed){day.updatedAt=Date.now();await put(STORE_FOOD_DAYS,day);}}
   return day;
 }
+async function addExtraMeal(){
+  const day=await getFoodDay(foodSelectedDate,true);
+  const snackCount=(day.meals||[]).filter(m=>/^Snack(?:\s+\d+)?$/i.test(m.name)).length;
+  const suggested=`Snack ${Math.max(2,snackCount+1)}`;
+  const name=prompt('Nombre de la comida o snack',suggested);
+  if(!name?.trim()) return;
+  const meal={id:`meal-${uid('extra')}`,name:name.trim(),items:[],custom:true};
+  const freeIndex=day.meals.findIndex(m=>m.name==='Comida libre');
+  if(freeIndex>=0) day.meals.splice(freeIndex,0,meal); else day.meals.push(meal);
+  day.updatedAt=Date.now(); await put(STORE_FOOD_DAYS,day); render();
+}
 function calculateNutritionGoal(input){
   const weight=+input.calcWeight||0, height=+input.height||0, age=+input.age||0, activity=+input.activity||1, deficit=+input.deficit||0;
   const proteinPerKg=+input.proteinPerKg||0, fatPerKg=+input.fatPerKg||0;
@@ -927,6 +974,7 @@ async function foodTodayHTML(){
     </section>
     <div class="macro-grid">${macroBar('protein','Proteína',totals.protein,goal.protein,'g')}${macroBar('fat','Grasa',totals.fat,goal.fat,'g')}${macroBar('carbs','Carbohidratos',totals.carbs,goal.carbs,'g')}</div>
     ${day.meals.map((meal,mi)=>mealHTML(meal,mi)).join('')}
+    <button class="btn ghost block extra-meal-btn" data-add-extra-meal>+ Agregar otro snack / comida</button>
     <section class="card template-card"><div class="row between"><div><div class="section-kicker">Atajos</div><strong>Plantillas</strong><div class="subtle">Guarda un día frecuente o cárgalo de nuevo.</div></div><button class="btn ghost compact" data-save-food-template>Guardar día</button></div>
       ${templates.length?`<div class="template-list">${templates.map(t=>`<button class="chip template-chip" data-load-food-template="${t.id}">${esc(t.name)}</button>`).join('')}</div>`:'<div class="subtle" style="margin-top:10px">Todavía no tienes plantillas.</div>'}
     </section><div id="foodSheetHost"></div>`;
@@ -977,7 +1025,7 @@ async function foodPickerHTML(){
     const f=await getOne(STORE_FOODS,foodPickerFoodId); if(!f){foodPickerFoodId=null;return foodPickerHTML();}
     return `<main class="screen"><div class="topbar"><button class="btn ghost" data-food-picker-back>← Alimentos</button><div style="text-align:right"><div class="subtle">${esc(meal.name)}</div><h1>${esc(f.name)}</h1></div></div>
       <section class="card"><div class="subtle">Referencia: ${round(+f.baseQty,2)} ${esc(f.unit)} · ${f.configured?`${round(+f.kcal)} kcal · P ${round(+f.protein)} · G ${round(+f.fat)} · C ${round(+f.carbs)}`:'Sin macros configurados'}</div>
-      ${f.configured?`<form id="addFoodForm"><div class="field"><label>Cantidad (${esc(f.unit)})</label><input name="qty" type="number" step="0.01" min="0.01" value="${+f.baseQty||1}" required></div><button class="btn primary block" type="submit">Agregar a ${esc(meal.name)}</button></form>`:`<div class="notice warn" style="margin-top:12px">Primero configura la información nutrimental de este alimento.</div><button class="btn primary block" data-configure-picker-food style="margin-top:12px">Configurar alimento</button>`}
+      ${f.configured?`<form id="addFoodForm"><div class="field"><label>Cantidad (${esc(f.unit)})</label><input id="foodQtyInput" name="qty" type="number" step="0.01" min="0.01" value="${+f.baseQty||1}" required></div><button class="btn primary block" type="submit">Agregar a ${esc(meal.name)}</button></form>`:`<div class="notice warn" style="margin-top:12px">Primero configura la información nutrimental de este alimento.</div><button class="btn primary block" data-configure-picker-food style="margin-top:12px">Configurar alimento</button>`}
       </section></main>`;
   }
   const foods=(await getAll(STORE_FOODS)).sort((a,b)=>(b.favorite-a.favorite)||a.name.localeCompare(b.name,'es'));
@@ -1105,6 +1153,7 @@ function bindFoodEvents(){
   document.getElementById('foodDateInput')?.addEventListener('change',e=>{foodSelectedDate=e.target.value||today();render();});
   document.querySelectorAll('[data-add-food]').forEach(b=>b.addEventListener('click',()=>{foodPickerMealIndex=+b.dataset.addFood;foodPickerFoodId=null;foodScreen='picker';render();}));
   document.querySelectorAll('[data-add-cheat]').forEach(b=>b.addEventListener('click',()=>openCheatMealSheet(+b.dataset.addCheat)));
+  document.querySelector('[data-add-extra-meal]')?.addEventListener('click',addExtraMeal);
   document.querySelectorAll('[data-remove-food-item]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const [mi,ii]=b.dataset.removeFoodItem.split(':').map(Number);removeFoodItem(mi,ii);}));
   document.querySelectorAll('[data-edit-food-item]').forEach(b=>b.addEventListener('click',()=>{const [mi,ii]=b.dataset.editFoodItem.split(':').map(Number);editFoodItem(mi,ii);}));
   document.querySelectorAll('[data-copy-yesterday]').forEach(b=>b.addEventListener('click',()=>copyMealFromYesterday(+b.dataset.copyYesterday)));
@@ -1128,6 +1177,10 @@ function bindFoodEvents(){
   nutritionForm?.addEventListener('input',()=>{updateGoalPreview();queueNutritionAutoSave();});
   nutritionForm?.addEventListener('change',async()=>{updateGoalPreview();clearTimeout(nutritionAutoSaveTimer);await saveNutritionGoal(nutritionForm);});
   if(document.getElementById('goalPreview')) updateGoalPreview();
+  const qtyInput=document.getElementById('foodQtyInput');
+  if(qtyInput){
+    setTimeout(()=>{try{qtyInput.focus({preventScroll:true});qtyInput.select();qtyInput.scrollIntoView({block:'center',behavior:'smooth'});}catch{}},40);
+  }
 }
 function filterFoodPicker(){
   const q=(document.getElementById('foodSearch')?.value||'').trim().toLowerCase(); const filter=document.querySelector('[data-food-filter].active')?.dataset.foodFilter||'all';
@@ -1242,9 +1295,19 @@ async function applyAppUpdate(){
 async function buildDailyReport(date){
   const sessions=(await getAll(STORE_SESSIONS)).filter(s=>s.date===date).sort((a,b)=>a.createdAt-b.createdAt);
   const day=await getFoodDay(date,false); const totals=day?foodDayTotals(day):emptyMacros(); const goal=await getNutritionGoal();
-  const measurements=(await getAll(STORE_MEASUREMENTS)).filter(m=>m.date<=date).sort((a,b)=>a.date.localeCompare(b.date)||a.createdAt-b.createdAt); const m=measurements.at(-1);
+  const m=await effectiveMeasurementAt(date);
   const lines=[`FIT LOG — ${fmtDate(date)}`];
-  if(m?.weight) lines.push(`Peso de referencia: ${m.weight} kg`);
+  lines.push('',`MEDICIONES`);
+  if(!m){
+    lines.push('Sin mediciones registradas.');
+  }else{
+    lines.push(`Referencia: ${m.date?fmtDate(m.date):fmtDate(date)}`);
+    if(m.height) lines.push(`Estatura: ${m.height} cm`);
+    if(m.age!==null && m.age!==undefined) lines.push(`Edad: ${m.age} años`);
+    for(const [k,label,unit] of MEASURE_FIELDS){
+      if(m[k]!==undefined && m[k]!==null && String(m[k]).trim()!=='') lines.push(`${label}: ${m[k]} ${unit}`);
+    }
+  }
   lines.push('',`NUTRICIÓN`,`Calorías: ${round(totals.kcal)} / ${round(goal.targetCalories)} kcal`,`Proteína: ${round(totals.protein)} / ${round(goal.protein)} g`,`Grasa: ${round(totals.fat)} / ${round(goal.fat)} g`,`Carbohidratos: ${round(totals.carbs)} / ${round(goal.carbs)} g`);
   if(day){for(const meal of day.meals||[]){if(!(meal.items||[]).length)continue;lines.push('',meal.name.toUpperCase());for(const it of meal.items){lines.push(`- ${it.name}: ${it.detailText||`${round(it.qty,2)} ${it.unit}`} · ${round(it.kcal)} kcal · P ${round(it.protein)} G ${round(it.fat)} C ${round(it.carbs)}`);}}}
   lines.push('',`ENTRENAMIENTO`);

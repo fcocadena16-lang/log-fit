@@ -340,3 +340,8 @@ body{font-size:16px}
 .meal-4 .section-kicker{color:#a77a17}
 .workout-sheet textarea{min-height:84px}
 @media(max-width:520px){.train-header-actions{flex-direction:column-reverse;align-items:flex-end}.daily-report-btn{padding:14px 15px}.daily-report-btn small{max-width:220px}.weight-hero.weight-only{padding:21px}}
+
+
+/* v9.7 ajustes de captura */
+.extra-meal-btn{margin:12px 0 16px;border-style:dashed;background:#f9fbff;color:#44536b}
+#foodQtyInput{font-size:20px;font-weight:750;text-align:center}
