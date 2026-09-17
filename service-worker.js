@@ -1,10 +1,10 @@
-const APP_VERSION = '10.6';
-const CACHE = 'fit-log-shell-v10.6-progress-measures-polish';
+const APP_VERSION = '11.0';
+const CACHE = 'fit-log-shell-v11.0-native-polish';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=10.6',
-  './app.js?v=10.6',
+  './styles.css?v=11.0',
+  './app.js?v=11.0',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',

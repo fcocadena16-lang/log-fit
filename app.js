@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '10.6';
+const APP_VERSION = '11.0';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -463,7 +463,7 @@ async function homeHTML(){
 
       <button class="dash-card dash-progress" data-action="progress-now">
         <div class="dash-card-top"><span class="dash-icon"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M7 15l4-4 3 2 5-6"/></svg></span><span class="card-arrow">→</span></div>
-        <div><span class="dashboard-kicker">Tendencia</span><h3>${totalWeightDelta===null?'—':`${totalWeightDelta>0?'+':''}${totalWeightDelta} kg`}</h3><p>cambio total de peso</p></div>
+        <div><span class="dashboard-kicker">Progreso</span><h3>${totalWeightDelta===null?'—':`${totalWeightDelta>0?'+':''}${totalWeightDelta} kg`}</h3><p>cambio total de peso</p></div>
       </button>
     </div>
 
