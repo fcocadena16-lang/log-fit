@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '10.1';
+const APP_VERSION = '10.3';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -804,9 +804,8 @@ async function measureHTML(){
       <div class="weight-entry-top"><span class="dashboard-kicker">Peso</span><span id="weightSaveStatus" class="auto-save-status">Automático</span></div>
       <div class="weight-entry-control"><input id="dailyWeightInput" inputmode="decimal" type="number" step="0.1" min="20" max="400" value="${currentWeight?.weight??effective?.weight??''}" placeholder="—" aria-label="Peso en kilogramos"><span>kg</span></div>
     </section>
-    <section class="body-measure-launch card">
-      <div><span class="dashboard-kicker">Semanal</span><h2>Medidas corporales</h2>${lastBody?.date?`<small>Última · ${fmtDate(lastBody.date)}</small>`:''}</div>
-      <button class="btn primary compact" data-open-body-measures>${lastBody?'Actualizar':'Registrar'}</button>
+    <section class="body-measure-launch card clickable-card measure-tint-card" data-open-body-measures>
+      <div><h2>Medidas corporales</h2></div>
     </section>
     <div id="measureSheetHost"></div>
   </main>`;
@@ -1045,12 +1044,8 @@ function foodQtyStep(unit){
   return 1;
 }
 function foodUnitLabel(unit,qty){
-  const n=Math.abs(+qty||0);
-  if(unit==='pieza') return n===1?'pieza':'piezas';
-  if(unit==='cucharadita') return n===1?'cucharadita':'cucharaditas';
-  if(unit==='taza') return n===1?'taza':'tazas';
-  if(unit==='scoop') return n===1?'scoop':'scoops';
-  return unit;
+  const map={g:'gr',ml:'ml',pieza:'pz',scoop:'sc',cucharadita:'cu',taza:'tz'};
+  return map[unit]||String(unit||'').slice(0,2).toLowerCase();
 }
 function mealHTML(meal,mi){
   const mt=meal.items.reduce((a,b)=>sumMacros(a,b),emptyMacros());
@@ -1480,7 +1475,7 @@ function bindViewEvents(){
   const dailyWeightInput=document.getElementById('dailyWeightInput');
   dailyWeightInput?.addEventListener('input',e=>queueDailyWeightSave(e.currentTarget));
   dailyWeightInput?.addEventListener('blur',async e=>{clearTimeout(weightAutoSaveTimer);const ok=await saveDailyWeightValue(e.currentTarget.value);const status=document.getElementById('weightSaveStatus');if(status)status.textContent=ok?'Guardado':'Revisa el valor';});
-  document.querySelector('[data-open-body-measures]')?.addEventListener('click',openBodyMeasureSheet);
+  document.querySelectorAll('[data-open-body-measures]').forEach(el=>el.addEventListener('click',openBodyMeasureSheet));
   document.getElementById('birthDateInput')?.addEventListener('change',e=>{const age=ageFromBirthDate(e.target.value,today());const el=document.getElementById('calculatedAge');if(el)el.textContent=age!==null?`${age} años`:'—';});
   document.querySelectorAll('[data-history-tab]').forEach(b=>b.addEventListener('click',()=>{historyTab=b.dataset.historyTab;render();}));
   document.querySelectorAll('[data-session-id]').forEach(b=>b.addEventListener('click',()=>showSession(b.dataset.sessionId)));

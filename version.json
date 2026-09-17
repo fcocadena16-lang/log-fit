@@ -1,6 +1,6 @@
 {
-  "version": "10.1",
+  "version": "10.3",
   "published": "2026-09-16",
   "name": "Fit Log",
-  "notes": "Diseño más limpio, reporte por cualquier fecha, peso diario con autoguardado y sincronización nutricional, medidas corporales en panel, plantillas actualizadas con valores actuales y correcciones de comida en iPhone."
+  "notes": "Medidas corporales con el mismo tono verde del peso; unidades de comida abreviadas y alineadas; números de Progreso más grandes."
 }

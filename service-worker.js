@@ -1,10 +1,10 @@
-const APP_VERSION = '10.1';
-const CACHE = 'fit-log-shell-v10.1-clean-sync';
+const APP_VERSION = '10.3';
+const CACHE = 'fit-log-shell-v10.3-visual-align';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=10.1',
-  './app.js?v=10.1',
+  './styles.css?v=10.3',
+  './app.js?v=10.3',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',
