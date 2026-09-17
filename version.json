@@ -1,6 +1,6 @@
 {
-  "version": "11.1",
+  "version": "11.2",
   "published": "2026-09-16",
   "name": "Fit Log",
-  "notes": "Home restaurado a diseño compacto de dos columnas y sesiones nuevas en 0% con series vacías; entrenamiento activo refinado."
+  "notes": "Las sesiones nuevas inician en 0%, pero precargan los últimos pesos usados. Repeticiones y RIR permanecen vacíos."
 }

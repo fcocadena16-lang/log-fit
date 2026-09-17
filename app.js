@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.1';
+const APP_VERSION = '11.2';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -547,14 +547,28 @@ function clearWorkoutDraft(){
   del(STORE_SETTINGS,'activeWorkoutDraft').catch(()=>{});
 }
 function setHasData(st,splitSides=false){
-  if(splitSides) return ['leftWeight','leftReps','leftRir','rightWeight','rightReps','rightRir'].some(k=>String(st?.[k]??'')!=='');
-  return String(st?.weight??'')!=='' || String(st?.reps??'')!=='' || String(st?.rir??'')!=='';
+  if(splitSides){
+    const leftDone=String(st?.leftReps??'')!=='' || String(st?.leftRir??'')!=='' || (String(st?.leftWeight??'')!=='' && !st?._seededLeftWeight);
+    const rightDone=String(st?.rightReps??'')!=='' || String(st?.rightRir??'')!=='' || (String(st?.rightWeight??'')!=='' && !st?._seededRightWeight);
+    return leftDone || rightDone;
+  }
+  return String(st?.reps??'')!=='' || String(st?.rir??'')!=='' || (String(st?.weight??'')!=='' && !st?._seededWeight);
 }
 function exerciseHasData(e){ return (e?.sets||[]).some(st=>setHasData(st,!!e.splitSides)); }
-function cloneSetForDraft(src,defaultUnit){
-  const st={n:1,weight:'',unit:defaultUnit,reps:'',rir:'',leftWeight:'',leftReps:'',leftRir:'',rightWeight:'',rightReps:'',rightRir:'',_weightAuto:true,_leftWeightAuto:true,_rightWeightAuto:true};
+function cloneSetForDraft(src,defaultUnit,{weightsOnly=false}={}){
+  const st={n:1,weight:'',unit:defaultUnit,reps:'',rir:'',leftWeight:'',leftReps:'',leftRir:'',rightWeight:'',rightReps:'',rightRir:'',_weightAuto:true,_leftWeightAuto:true,_rightWeightAuto:true,_seededWeight:false,_seededLeftWeight:false,_seededRightWeight:false};
   if(src){
-    for(const k of ['weight','unit','reps','rir','leftWeight','leftReps','leftRir','rightWeight','rightReps','rightRir']) if(src[k]!==undefined) st[k]=src[k];
+    if(weightsOnly){
+      st.unit=src.unit||defaultUnit;
+      st.weight=src.weight??'';
+      st.leftWeight=src.leftWeight??'';
+      st.rightWeight=src.rightWeight??'';
+      st._seededWeight=String(st.weight)!=='';
+      st._seededLeftWeight=String(st.leftWeight)!=='';
+      st._seededRightWeight=String(st.rightWeight)!=='';
+    }else{
+      for(const k of ['weight','unit','reps','rir','leftWeight','leftReps','leftRir','rightWeight','rightReps','rightRir']) if(src[k]!==undefined) st[k]=src[k];
+    }
   }
   return st;
 }
@@ -564,7 +578,8 @@ async function buildExerciseDraft(exName,meta,originalName=null){
   const count=prevEx?.sets?.length || meta.setCount;
   const defaultUnit=prevEx?.sets?.[0]?.unit || meta.unit;
   const sets=Array.from({length:count},(_,i)=>{
-    const st=cloneSetForDraft(null,defaultUnit);
+    const src=prevEx?.sets?.[i] || prevEx?.sets?.at(-1) || null;
+    const st=cloneSetForDraft(src,defaultUnit,{weightsOnly:true});
     st.n=i+1;
     return st;
   });
@@ -699,6 +714,9 @@ function propagateWeight(ei,si,k,value){
   const targetKey=k.startsWith('left')?'leftWeight':k.startsWith('right')?'rightWeight':'weight';
   for(let j=si+1;j<ex.sets.length;j++){
     ex.sets[j][targetKey]=value;
+    if(targetKey==='weight') ex.sets[j]._seededWeight=true;
+    if(targetKey==='leftWeight') ex.sets[j]._seededLeftWeight=true;
+    if(targetKey==='rightWeight') ex.sets[j]._seededRightWeight=true;
     const q=targetKey==='weight'?`[data-k="weight"][data-ei="${ei}"][data-si="${j}"]`:`[data-side-k="${targetKey}"][data-ei="${ei}"][data-si="${j}"]`;
     const input=document.querySelector(q); if(input) input.value=value;
   }
@@ -709,8 +727,8 @@ function bindWorkoutEvents(){
   document.getElementById('overallFeeling')?.addEventListener('change',e=>{activeSessionDraft.overallFeeling=e.target.value;persistWorkoutDraft();});
   document.getElementById('sessionNotes')?.addEventListener('input',e=>{activeSessionDraft.notes=e.target.value;persistWorkoutDraft();});
   document.querySelectorAll('[data-cardio]').forEach(el=>el.addEventListener('input',e=>{activeSessionDraft.cardio[e.target.dataset.cardio]=e.target.value;persistWorkoutDraft();}));
-  document.querySelectorAll('[data-k]').forEach(el=>el.addEventListener('input',e=>{const {ei,si,k}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei],st=ex.sets[+si];st[k]=e.target.value;if(k==='weight') propagateWeight(+ei,+si,k,e.target.value);if(k==='unit' && +si===0){ex.sets.forEach((x,j)=>{if(j>0&&x._weightAuto!==false)x.unit=e.target.value;});}persistWorkoutDraft();updateWorkoutProgress();}));
-  document.querySelectorAll('[data-side-k]').forEach(el=>el.addEventListener('input',e=>{const {ei,si,sideK,side}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei],st=ex.sets[+si];st[sideK]=e.target.value;if(sideK.endsWith('Weight')) propagateWeight(+ei,+si,sideK,e.target.value);persistWorkoutDraft();updateWorkoutProgress();}));
+  document.querySelectorAll('[data-k]').forEach(el=>el.addEventListener('input',e=>{const {ei,si,k}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei],st=ex.sets[+si];st[k]=e.target.value;if(k==='weight'){st._seededWeight=false;propagateWeight(+ei,+si,k,e.target.value);}if(k==='unit' && +si===0){ex.sets.forEach((x,j)=>{if(j>0&&x._weightAuto!==false)x.unit=e.target.value;});}persistWorkoutDraft();updateWorkoutProgress();}));
+  document.querySelectorAll('[data-side-k]').forEach(el=>el.addEventListener('input',e=>{const {ei,si,sideK,side}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei],st=ex.sets[+si];st[sideK]=e.target.value;if(sideK==='leftWeight')st._seededLeftWeight=false;if(sideK==='rightWeight')st._seededRightWeight=false;if(sideK.endsWith('Weight')) propagateWeight(+ei,+si,sideK,e.target.value);persistWorkoutDraft();updateWorkoutProgress();}));
   document.querySelectorAll('[data-side-unit]').forEach(el=>el.addEventListener('change',e=>{const {ei,si}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei];ex.sets[+si].unit=e.target.value;if(+si===0)ex.sets.forEach((x,j)=>{if(j>0)x.unit=e.target.value;});persistWorkoutDraft();}));
   document.querySelectorAll('[data-feeling]').forEach(el=>el.addEventListener('change',e=>{activeSessionDraft.exercises[+e.target.dataset.feeling].feeling=e.target.value;persistWorkoutDraft();}));
   document.querySelectorAll('[data-notes]').forEach(el=>el.addEventListener('input',e=>{activeSessionDraft.exercises[+e.target.dataset.notes].notes=e.target.value;persistWorkoutDraft();}));

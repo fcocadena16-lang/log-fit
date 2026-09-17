@@ -1,10 +1,10 @@
-const APP_VERSION = '11.1';
-const CACHE = 'fit-log-shell-v11.1-home-workout-fix';
+const APP_VERSION = '11.2';
+const CACHE = 'fit-log-shell-v11.2-seeded-weights';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=11.1',
-  './app.js?v=11.1',
+  './styles.css?v=11.2',
+  './app.js?v=11.2',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',
