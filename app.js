@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.0';
+const APP_VERSION = '11.1';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -562,13 +562,13 @@ async function buildExerciseDraft(exName,meta,originalName=null){
   const prev=await latestExerciseRecord(exName);
   const prevEx=prev?.exercise;
   const count=prevEx?.sets?.length || meta.setCount;
+  const defaultUnit=prevEx?.sets?.[0]?.unit || meta.unit;
   const sets=Array.from({length:count},(_,i)=>{
-    const src=prevEx?.sets?.[i] || null;
-    const st=cloneSetForDraft(src,meta.unit);
+    const st=cloneSetForDraft(null,defaultUnit);
     st.n=i+1;
     return st;
   });
-  return {name:exName,originalName:originalName||exName,defaultUnit:meta.unit,seed:meta.seed,previous:prev?formatPrevious(prev):meta.seed,group:meta.group||prevEx?.group||EXERCISE_META[exName]?.group||'Otro',custom:!!meta.custom,splitSides:!!prevEx?.splitSides,sets,feeling:'',notes:''};
+  return {name:exName,originalName:originalName||exName,defaultUnit,seed:meta.seed,previous:prev?formatPrevious(prev):meta.seed,group:meta.group||prevEx?.group||EXERCISE_META[exName]?.group||'Otro',custom:!!meta.custom,splitSides:!!prevEx?.splitSides,sets,feeling:'',notes:''};
 }
 async function startRoutine(name){
   const existing=loadWorkoutDraft();
@@ -671,10 +671,10 @@ function exerciseHTML(e,i){
   return `<section class="card exercise" data-ex="${i}">
     <div class="exercise-head">
       <div class="exercise-number">${i+1}</div>
-      <button class="exercise-title-button ${alts.length?'can-swap':''}" data-change-exercise="${i}" ${alts.length?'':'disabled'}><span class="exercise-title-wrap"><h3>${esc(e.name)}</h3>${group?`<div class="muscle-tag">${esc(group)}</div>`:''}${alts.length?`<small>Toca el título para cambiar ejercicio</small>`:''}</span>${alts.length?'<span class="swap-chevron">›</span>':''}</button>
+      <button class="exercise-title-button ${alts.length?'can-swap':''}" data-change-exercise="${i}" ${alts.length?'':'disabled'}><span class="exercise-title-wrap"><h3>${esc(e.name)}</h3>${group?`<div class="muscle-tag">${esc(group)}</div>`:''}</span>${alts.length?'<span class="swap-chevron">›</span>':''}</button>
     </div>
     <div class="previous-panel"><span>Último registro</span><strong>${esc(e.previous||e.seed)}</strong></div>
-    ${e.splitSides?`<div class="split-note">Resultados independientes para izquierda y derecha</div>`:''}
+    ${e.splitSides?`<div class="split-note">Resultados independientes para izquierda y derecha</div>`:`<div class="set-head workout-set-head"><span></span><span>Peso</span><span>Reps</span><span>RIR</span><span></span></div>`}
     <div class="sets">${e.sets.map((st,j)=>setRowHTML(st,i,j,e.splitSides)).join('')}</div>
     <div class="exercise-footer"><button class="btn ghost compact" data-add-set="${i}">+ Añadir serie</button><button class="btn ghost compact ${e.splitSides?'active':''}" data-toggle-sides="${i}">${e.splitSides?'Un solo resultado':'↔ Izq / Der'}</button>${e.custom?`<button class="btn ghost compact danger-text" data-remove-exercise="${i}">Eliminar ejercicio</button>`:''}</div>
     <div class="exercise-meta-grid"><div class="field"><label>Sensaciones</label><select data-feeling="${i}"><option value="">Seleccionar</option>${['Muy ligero','Bien','Normal','Pesado','Muy pesado','Molestia'].map(v=>`<option ${e.feeling===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Notas</label><textarea data-notes="${i}" placeholder="Técnica, molestias, ajustes…">${esc(e.notes)}</textarea></div></div>

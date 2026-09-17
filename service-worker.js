@@ -1,10 +1,10 @@
-const APP_VERSION = '11.0';
-const CACHE = 'fit-log-shell-v11.0-native-polish';
+const APP_VERSION = '11.1';
+const CACHE = 'fit-log-shell-v11.1-home-workout-fix';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=11.0',
-  './app.js?v=11.0',
+  './styles.css?v=11.1',
+  './app.js?v=11.1',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',

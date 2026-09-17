@@ -1,6 +1,6 @@
 {
-  "version": "11.0",
+  "version": "11.1",
   "published": "2026-09-16",
   "name": "Fit Log",
-  "notes": "Pulido visual integral tipo app nativa en toda la app: Home, Entrenamiento, Comida, Medidas y Progreso, con revisión y refinamiento múltiple."
+  "notes": "Home restaurado a diseño compacto de dos columnas y sesiones nuevas en 0% con series vacías; entrenamiento activo refinado."
 }

@@ -833,3 +833,109 @@ button,.btn,.icon-btn,.nav-btn,.tab,.chip,.routine-btn,.dash-card,.list-item,.ti
   .dash-card h3{font-size:28px}
   .body-measure-launch h2{font-size:32px}
 }
+
+
+/* v11.1 — restore compact Home + clean new workout */
+/* Home: keep the native polish, but restore the compact colored 2-column dashboard. */
+.dashboard-home .bento-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:12px!important}
+.dashboard-home .dash-card{
+  min-height:188px!important;
+  padding:18px!important;
+  border:0!important;
+  border-radius:27px!important;
+  box-shadow:0 13px 32px rgba(52,65,86,.08)!important;
+  position:relative;
+  overflow:hidden;
+}
+.dashboard-home .dash-card::before{content:"";position:absolute;width:100px;height:100px;border-radius:50%;right:-38px;top:-34px;background:rgba(255,255,255,.30)}
+.dashboard-home .dash-training{background:linear-gradient(145deg,#dce7ff,#edf2ff)!important}
+.dashboard-home .dash-food{background:linear-gradient(145deg,#fde6d6,#fff1e7)!important}
+.dashboard-home .dash-measure{background:linear-gradient(145deg,#dcefe7,#edf8f3)!important}
+.dashboard-home .dash-progress{background:linear-gradient(145deg,#e7e1f8,#f3effc)!important}
+.dashboard-home .dash-card-top{margin-bottom:12px!important}
+.dashboard-home .dash-icon{background:rgba(255,255,255,.68)!important;border:0!important;box-shadow:none!important}
+.dashboard-home .dash-card h3{font-size:30px!important;margin:6px 0 5px!important}
+.dashboard-home .dash-card p{font-size:13px!important;line-height:1.25!important}
+.dashboard-home .dash-card small{font-size:12px!important}
+.dashboard-home .dashboard-macros{background:rgba(255,255,255,.82)!important}
+.dashboard-home .timeline-item{background:transparent!important;border:0!important;box-shadow:none!important;border-radius:0!important}
+.dashboard-home .timeline-list{padding-left:10px}
+@media(max-width:700px){
+  .dashboard-home .bento-grid{grid-template-columns:1fr 1fr!important}
+  .dashboard-home .dash-card{min-height:174px!important;padding:16px!important}
+  .dashboard-home .dash-card h3{font-size:27px!important}
+}
+@media(max-width:390px){
+  .dashboard-home .bento-grid{grid-template-columns:1fr 1fr!important;gap:9px!important}
+  .dashboard-home .dash-card{min-height:166px!important;padding:14px!important}
+  .dashboard-home .dash-card h3{font-size:25px!important}
+  .dashboard-home .dash-card p{font-size:12px!important}
+}
+
+/* Active workout: a new session starts visually empty and matches the rest of Fit Log. */
+.workout-screen{max-width:820px}
+.workout-overview{
+  background:linear-gradient(180deg,#ffffff 0%,#f6f9ff 100%)!important;
+  border:1px solid #e1e8f3!important;
+  border-radius:28px!important;
+  box-shadow:0 14px 34px rgba(15,23,42,.05)!important;
+}
+.workout-overview .progressbar{height:9px;margin:14px 0 10px;background:#edf1f7}
+.autosave-indicator{font-size:12px!important;color:#4d8668!important;margin-top:0!important}
+.date-field{max-width:210px!important;margin:0 0 14px auto!important}
+.date-field label{font-size:12px!important;text-transform:uppercase;letter-spacing:.05em}
+.date-field input{min-height:48px!important;text-align:center;font-weight:760}
+.exercise{
+  padding:20px!important;
+  border-radius:30px!important;
+  border:1px solid #e2e9f3!important;
+  background:linear-gradient(180deg,#ffffff 0%,#fbfcff 100%)!important;
+  box-shadow:0 14px 32px rgba(15,23,42,.05)!important;
+}
+.exercise-head{align-items:center!important}
+.exercise-number{width:44px!important;height:44px!important;flex:0 0 44px!important;border-radius:15px!important}
+.exercise-title-button{padding:2px 0!important}
+.exercise-title-wrap h3{font-size:23px!important;line-height:1.1!important}
+.muscle-tag{font-size:12px!important;margin-top:5px!important;color:#64748b!important}
+.swap-chevron{font-size:31px!important;color:#8492a8!important}
+.previous-panel{
+  margin:14px 0 12px!important;
+  padding:12px 14px!important;
+  border-radius:18px!important;
+  background:#f5f8fc!important;
+  border:1px solid #e4ebf4!important;
+}
+.previous-panel span{font-size:11px!important;letter-spacing:.06em!important}
+.previous-panel strong{font-size:13px!important;line-height:1.4!important;color:#435168!important}
+.workout-set-head{display:grid!important;grid-template-columns:34px minmax(0,1.45fr) minmax(0,.8fr) minmax(0,.72fr) 30px!important;gap:8px!important;margin:4px 0 0!important;padding:0 4px 3px!important}
+.workout-set-head span{text-align:center!important}
+.set-row{
+  display:grid!important;
+  grid-template-columns:34px minmax(0,1.45fr) minmax(0,.8fr) minmax(0,.72fr) 30px!important;
+  gap:8px!important;
+  align-items:center!important;
+  margin-top:0!important;
+  padding:9px 4px!important;
+  border-bottom:1px solid #edf1f6!important;
+}
+.set-row:last-child{border-bottom:0!important}
+.set-row>div.row{display:grid!important;grid-template-columns:minmax(0,1fr) 58px!important;gap:6px!important}
+.set-row input,.set-row select{height:48px!important;min-width:0!important;border-radius:15px!important;text-align:center!important;font-weight:760!important;background:#fff!important}
+.set-row select{padding:0 7px!important}
+.set-num{font-size:15px!important;color:#708098!important}
+.set-row>.icon-btn{width:30px!important;height:40px!important;padding:0!important;font-size:22px!important;color:#8190a5!important}
+.exercise-footer{gap:9px!important;margin-top:16px!important}
+.exercise-footer .btn{border-radius:16px!important;background:#fff!important;border:1px solid #e1e8f2!important;box-shadow:0 6px 14px rgba(15,23,42,.035)!important}
+.exercise-meta-grid{margin-top:14px!important}
+.exercise-meta-grid .field{margin:6px 0!important}
+.add-exercise-btn{margin-top:4px!important;background:#fff!important;border:1px dashed #cfd9e7!important;box-shadow:none!important}
+.cardio-card,.session-card{border-radius:30px!important;background:linear-gradient(180deg,#fff,#fbfcff)!important}
+.save-workout-btn{min-height:58px!important;border-radius:20px!important}
+@media(max-width:520px){
+  .exercise{padding:16px!important}
+  .exercise-title-wrap h3{font-size:21px!important}
+  .workout-set-head,.set-row{grid-template-columns:30px minmax(0,1.5fr) minmax(0,.78fr) minmax(0,.68fr) 28px!important;gap:6px!important}
+  .set-row>div.row{grid-template-columns:minmax(0,1fr) 52px!important;gap:5px!important}
+  .set-row input,.set-row select{height:46px!important;padding:0 7px!important}
+  .date-field{max-width:190px!important}
+}
