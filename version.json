@@ -1,6 +1,6 @@
 {
-  "version": "11.8",
+  "version": "11.9",
   "published": "2026-09-16",
   "name": "Fit Log",
-  "notes": "Registro diario de peso y horas de sueño en la misma pantalla, con autoguardado. El sueño también aparece en Progreso y en el reporte diario."
+  "notes": "Registro diario simplificado y reporte movido a Ajustes con selección de fecha y opción para incluir mediciones corporales iniciales y actuales."
 }

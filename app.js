@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.8';
+const APP_VERSION = '11.9';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -495,20 +495,15 @@ async function homeHTML(){
       <div class="macro-dashboard-row"><span>Carbos</span><div><i style="width:${carbsPct}%"></i></div><strong>${round(totals.carbs)} / ${round(goal.carbs)} g</strong></div>
     </section>
 
-    <section class="daily-report-card clean-report-card">
-      <div><span class="dashboard-kicker">Reporte</span><h2>Resumen diario</h2></div>
-      <div class="report-date-actions"><input id="dailyReportDate" type="date" value="${today()}" aria-label="Fecha del reporte"><button class="btn primary compact" data-action="daily-report">Compartir</button></div>
-    </section>
-
     <div class="dashboard-section-head"><h2>Últimos entrenamientos</h2><button class="text-link" data-action="history">Ver todo</button></div>
     ${recent.length?`<div class="timeline-list">${recent.map((s,i)=>`<button class="timeline-item" data-session-id="${s.id}"><span class="timeline-dot ${i===0?'current':''}"></span><span class="timeline-copy"><strong>${esc(s.routine)}</strong><small>${fmtDate(s.date)} · ${s.exercises.length} ejercicios</small></span><span class="card-arrow">›</span></button>`).join('')}</div>`:'<div class="dashboard-empty">Tu historial aparecerá aquí después del primer entrenamiento.</div>'}
 
     <div id="settingsSheet" class="sheet-backdrop hide" aria-hidden="true">
       <div class="sheet">
         <div class="sheet-handle"></div>
-        <div class="sheet-header">
+        <div class="sheet-header settings-sheet-header">
           <div><div class="subtle">Fit Log</div><h3>Ajustes</h3></div>
-          <button class="icon-btn icon-square" data-action="close-settings" aria-label="Cerrar">✕</button>
+          <div class="settings-header-actions"><button class="btn primary compact settings-share-btn" data-action="open-report-share">Compartir</button><button class="icon-btn icon-square" data-action="close-settings" aria-label="Cerrar">✕</button></div>
         </div>
         <section class="card sheet-card update-card">
           <div class="row between update-version-row"><div><div class="subtle">Aplicación</div><h4 style="margin:5px 0 2px;font-size:20px">Actualizaciones</h4></div><span class="version-badge">v${APP_VERSION}</span></div>
@@ -531,6 +526,7 @@ async function homeHTML(){
         </section>
       </div>
     </div>
+    <div id="reportShareHost"></div>
   </main>`;
 }
 
@@ -876,7 +872,7 @@ async function measureHTML(){
   const todaySleepRow=todayRows.find(x=>num(x.sleepHours)!==null)||null;
   return `<main class="screen section-screen measure-screen clean-measure-screen">
     <section class="weight-entry-card measure-tint-card editable-weight-card daily-entry-card">
-      <div class="weight-entry-top"><div class="weight-entry-heading"><span class="dashboard-kicker">Registro diario</span><small>Peso y horas de sueño</small></div><span id="dailySaveStatus" class="auto-save-status">Auto</span></div>
+      <div class="weight-entry-top daily-entry-title"><div class="weight-entry-heading"><span class="dashboard-kicker">Registro diario</span></div></div>
       <div class="daily-metric-block">
         <label class="daily-metric-label" for="dailyWeightInput">Peso</label>
         <label class="weight-input-shell" for="dailyWeightInput"><input id="dailyWeightInput" inputmode="decimal" type="number" step="0.1" min="20" max="400" value="${todayWeightRow?.weight??currentWeight?.weight??effective?.weight??''}" placeholder="0.0" aria-label="Peso en kilogramos"><span>kg</span></label>
@@ -886,7 +882,6 @@ async function measureHTML(){
         <label class="daily-metric-label" for="dailySleepInput">Horas de sueño</label>
         <label class="weight-input-shell sleep-input-shell" for="dailySleepInput"><input id="dailySleepInput" inputmode="decimal" type="number" step="0.1" min="0" max="24" value="${todaySleepRow?.sleepHours??''}" placeholder="0.0" aria-label="Horas de sueño"><span>h</span></label>
       </div>
-      <p class="weight-entry-note">Se guarda automáticamente al escribir.</p>
     </section>
     <section class="body-measure-launch card clickable-card measure-tint-card" data-open-body-measures>
       <div><h2>Medidas corporales</h2></div><span class="measure-card-arrow">›</span>
@@ -1521,34 +1516,100 @@ async function applyAppUpdate(){
   }
 }
 
-async function buildDailyReport(date){
+async function buildDailyReport(date,{includeBody=false}={}){
   const sessions=(await getAll(STORE_SESSIONS)).filter(s=>s.date===date).sort((a,b)=>a.createdAt-b.createdAt);
-  const day=await getFoodDay(date,false); const totals=day?foodDayTotals(day):emptyMacros(); const goal=await nutritionGoalForDate(date);
-  const m=await effectiveMeasurementAt(date);
+  const day=await getFoodDay(date,false);
+  const totals=day?foodDayTotals(day):emptyMacros();
+  const goal=await nutritionGoalForDate(date);
+  const allMeasurements=(await getAll(STORE_MEASUREMENTS)).filter(m=>!m.date || m.date<=date).sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||0)-(b.createdAt||0));
+  const weightRows=allMeasurements.filter(m=>num(m.weight)!==null);
+  const initialWeight=weightRows[0]||null;
+  const currentWeight=weightRows.at(-1)||null;
+  const dateRows=allMeasurements.filter(m=>m.date===date).sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0));
+  const sleepRow=dateRows.find(m=>num(m.sleepHours)!==null)||null;
+  const bodyRows=allMeasurements.filter(hasBodyMeasurementData);
+  const initialBody=bodyRows[0]||null;
+  const currentBody=bodyRows.at(-1)||null;
+
   const lines=[`FIT LOG — ${fmtDate(date)}`];
-  lines.push('',`MEDICIONES`);
-  if(!m){
-    lines.push('Sin mediciones registradas.');
+  lines.push('', 'PESO');
+  lines.push(`Inicial: ${initialWeight?`${initialWeight.weight} kg · ${fmtDate(initialWeight.date)}`:'Sin registro'}`);
+  lines.push(`Actual: ${currentWeight?`${currentWeight.weight} kg · ${fmtDate(currentWeight.date)}`:'Sin registro'}`);
+
+  lines.push('', 'SUEÑO');
+  lines.push(sleepRow?`${sleepRow.sleepHours} h`:'Sin registro');
+
+  lines.push('', 'CALORÍAS Y MACROS');
+  lines.push(`Calorías: ${round(totals.kcal)} / ${round(goal.targetCalories)} kcal`);
+  lines.push(`Proteína: ${round(totals.protein)} / ${round(goal.protein)} g`);
+  lines.push(`Grasa: ${round(totals.fat)} / ${round(goal.fat)} g`);
+  lines.push(`Carbohidratos: ${round(totals.carbs)} / ${round(goal.carbs)} g`);
+
+  lines.push('', 'COMIDA');
+  if(!day || !(day.meals||[]).some(m=>(m.items||[]).length)){
+    lines.push('Sin alimentos registrados.');
   }else{
-    lines.push(`Referencia: ${m.date?fmtDate(m.date):fmtDate(date)}`);
-    if(m.height) lines.push(`Estatura: ${m.height} cm`);
-    if(m.age!==null && m.age!==undefined) lines.push(`Edad: ${m.age} años`);
-    for(const [k,label,unit] of MEASURE_FIELDS){
-      if(m[k]!==undefined && m[k]!==null && String(m[k]).trim()!=='') lines.push(`${label}: ${m[k]} ${unit}`);
+    for(const meal of day.meals||[]){
+      if(!(meal.items||[]).length) continue;
+      lines.push(`${meal.name}:`);
+      for(const it of meal.items){
+        lines.push(`- ${it.name}: ${it.detailText||`${round(it.qty,2)} ${it.unit}`} · ${round(it.kcal)} kcal · P ${round(it.protein)} G ${round(it.fat)} C ${round(it.carbs)}`);
+      }
     }
   }
-  lines.push('',`NUTRICIÓN`,`Calorías: ${round(totals.kcal)} / ${round(goal.targetCalories)} kcal`,`Proteína: ${round(totals.protein)} / ${round(goal.protein)} g`,`Grasa: ${round(totals.fat)} / ${round(goal.fat)} g`,`Carbohidratos: ${round(totals.carbs)} / ${round(goal.carbs)} g`);
-  if(day){for(const meal of day.meals||[]){if(!(meal.items||[]).length)continue;lines.push('',meal.name.toUpperCase());for(const it of meal.items){lines.push(`- ${it.name}: ${it.detailText||`${round(it.qty,2)} ${it.unit}`} · ${round(it.kcal)} kcal · P ${round(it.protein)} G ${round(it.fat)} C ${round(it.carbs)}`);}}}
-  lines.push('',`ENTRENAMIENTO`);
+
+  lines.push('', 'ENTRENAMIENTO');
   if(!sessions.length) lines.push('Sin entrenamiento guardado.');
-  for(const s of sessions){lines.push(`${s.routine} — ${s.overallFeeling||'sin sensación general'}`);for(const e of s.exercises||[]){const sets=(e.sets||[]).filter(st=>setHasData(st,!!e.splitSides));if(!sets.length)continue;lines.push(`• ${e.name}: ${sets.map(st=>formatSetText(st,!!e.splitSides)).join(' | ')}`);if(e.feeling)lines.push(`  Sensación: ${e.feeling}`);if(e.notes)lines.push(`  Nota: ${e.notes}`);}const c=s.cardio||{};if(Object.values(c).some(v=>String(v??'')!==''))lines.push(`Cardio: ${c.minutes||'—'} min · ${c.heartRate||'—'} bpm · inclinación ${c.incline||'—'}% · ${c.speed||'—'} km/h`);if(s.notes)lines.push(`Notas de sesión: ${s.notes}`);}
+  for(const s of sessions){
+    lines.push(`${s.routine}${s.overallFeeling?` — ${s.overallFeeling}`:''}`);
+    for(const e of s.exercises||[]){
+      const sets=(e.sets||[]).filter(st=>setHasData(st,!!e.splitSides));
+      if(!sets.length) continue;
+      lines.push(`• ${e.name}: ${sets.map(st=>formatSetText(st,!!e.splitSides)).join(' | ')}`);
+      if(e.feeling) lines.push(`  Sensación: ${e.feeling}`);
+      if(e.notes) lines.push(`  Nota: ${e.notes}`);
+    }
+    const c=s.cardio||{};
+    if(Object.values(c).some(v=>String(v??'')!=='')) lines.push(`Cardio: ${c.minutes||'—'} min · ${c.heartRate||'—'} bpm · inclinación ${c.incline||'—'}% · ${c.speed||'—'} km/h`);
+    if(s.notes) lines.push(`Notas de sesión: ${s.notes}`);
+  }
+
+  if(includeBody){
+    lines.push('', 'MEDICIONES CORPORALES');
+    if(!initialBody){
+      lines.push('Sin mediciones corporales registradas.');
+    }else{
+      lines.push(`Iniciales · ${fmtDate(initialBody.date)}`);
+      for(const [k,label,unit] of BODY_MEASURE_FIELDS){
+        if(String(initialBody?.[k]??'').trim()!=='') lines.push(`${label}: ${initialBody[k]} ${unit}`);
+      }
+      lines.push('', `Actuales · ${fmtDate(currentBody.date)}`);
+      for(const [k,label,unit] of BODY_MEASURE_FIELDS){
+        if(String(currentBody?.[k]??'').trim()!=='') lines.push(`${label}: ${currentBody[k]} ${unit}`);
+      }
+    }
+  }
   return lines.join('\n');
 }
-async function shareDailyReport(date){
-  const text=await buildDailyReport(date); const title=`Fit Log · ${fmtDate(date)}`;
-  if(navigator.share){try{await navigator.share({title,text});return;}catch(err){if(err?.name==='AbortError')return;}}
+async function shareDailyReport(date,includeBody=false){
+  const text=await buildDailyReport(date,{includeBody});
+  const title=`Fit Log · ${fmtDate(date)}`;
+  if(navigator.share){
+    try{await navigator.share({title,text});return;}
+    catch(err){if(err?.name==='AbortError')return;}
+  }
   try{await navigator.clipboard.writeText(text);alert('Reporte copiado. Ya puedes pegarlo en Fit OS.');}
   catch{const blob=new Blob([text],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`fit-log-${date}.txt`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
+}
+function openReportShareSheet(){
+  const host=document.getElementById('reportShareHost'); if(!host)return;
+  host.innerHTML=`<div class="workout-sheet-backdrop report-share-backdrop" data-close-report-share><div class="workout-sheet report-share-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Fit Log</span><h3>Compartir reporte</h3></div><button class="icon-btn icon-square" data-close-report-share aria-label="Cerrar">✕</button></div><div class="field"><label>Fecha</label><input id="reportShareDate" type="date" value="${today()}"></div><label class="report-body-toggle"><input id="includeBodyMeasures" type="checkbox"><span><strong>Incluir mediciones corporales</strong><small>Agrega las iniciales y las actuales.</small></span></label><button class="btn primary block report-share-submit" data-action="share-selected-report">Compartir</button></div></div>`;
+  host.querySelectorAll('[data-close-report-share]').forEach(x=>x.addEventListener('click',()=>host.innerHTML=''));
+  host.querySelector('[data-action="share-selected-report"]')?.addEventListener('click',async()=>{
+    const date=document.getElementById('reportShareDate')?.value||today();
+    const includeBody=!!document.getElementById('includeBodyMeasures')?.checked;
+    await shareDailyReport(date,includeBody);
+  });
 }
 function bindViewEvents(){
   document.querySelectorAll('[data-routine]').forEach(b=>b.addEventListener('click',()=>startRoutine(b.dataset.routine)));
@@ -1559,10 +1620,11 @@ function bindViewEvents(){
   document.querySelectorAll('[data-action="progress-now"]').forEach(b=>b.addEventListener('click',()=>setView('progress')));
   document.querySelector('[data-action="history"]')?.addEventListener('click',()=>{currentView='history';historyTab='sessions';render();});
   document.querySelector('[data-train-history]')?.addEventListener('click',()=>{currentView='history';historyTab='sessions';render();});
-  document.querySelectorAll('[data-action="daily-report"]')?.forEach(b=>b.addEventListener('click',()=>shareDailyReport(document.getElementById('dailyReportDate')?.value||b.dataset.reportDate||today())));
+  document.querySelectorAll('[data-action="daily-report"]')?.forEach(b=>b.addEventListener('click',()=>shareDailyReport(b.dataset.reportDate||today(),false)));
   document.querySelector('[data-action="history-back"]')?.addEventListener('click',()=>setView('home'));
   const settingsSheet=document.getElementById('settingsSheet');
   document.querySelector('[data-action="open-settings"]')?.addEventListener('click',()=>settingsSheet?.classList.remove('hide'));
+  document.querySelector('[data-action="open-report-share"]')?.addEventListener('click',openReportShareSheet);
   document.querySelector('[data-action="close-settings"]')?.addEventListener('click',()=>settingsSheet?.classList.add('hide'));
   settingsSheet?.addEventListener('click',e=>{ if(e.target===settingsSheet) settingsSheet.classList.add('hide'); });
   document.getElementById('profileSettingsForm')?.addEventListener('submit',e=>{e.preventDefault();saveProfileData(e.currentTarget);});
