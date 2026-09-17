@@ -1,6 +1,6 @@
 {
-  "version": "10.0",
-  "published": "2026-09-14",
+  "version": "10.1",
+  "published": "2026-09-16",
   "name": "Fit Log",
-  "notes": "Comidas compactas: encabezado con nombre y kcal, alimentos en una sola línea con cantidad editable, botones +/- y actualización del resumen manteniendo la posición en pantalla."
+  "notes": "Diseño más limpio, reporte por cualquier fecha, peso diario con autoguardado y sincronización nutricional, medidas corporales en panel, plantillas actualizadas con valores actuales y correcciones de comida en iPhone."
 }

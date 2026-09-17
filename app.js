@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '10.0';
+const APP_VERSION = '10.1';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -440,7 +440,6 @@ async function homeHTML(){
       </div>
       <span class="weight-edit-badge" aria-hidden="true">✎</span>
     </section>
-    <button class="daily-report-btn" data-action="daily-report" data-report-date="${today()}"><span><b>Reporte de hoy</b><small>Entrenamiento, cardio, comida y macros</small></span><strong>Compartir →</strong></button>
 
     <div class="dashboard-section-head"><h2>Hoy</h2><span class="status mini-status ok">● Local</span></div>
     <div class="bento-grid">
@@ -473,6 +472,11 @@ async function homeHTML(){
       <div class="macro-dashboard-row"><span>Proteína</span><div><i style="width:${proteinPct}%"></i></div><strong>${round(totals.protein)} / ${round(goal.protein)} g</strong></div>
       <div class="macro-dashboard-row"><span>Grasa</span><div><i style="width:${fatPct}%"></i></div><strong>${round(totals.fat)} / ${round(goal.fat)} g</strong></div>
       <div class="macro-dashboard-row"><span>Carbos</span><div><i style="width:${carbsPct}%"></i></div><strong>${round(totals.carbs)} / ${round(goal.carbs)} g</strong></div>
+    </section>
+
+    <section class="daily-report-card clean-report-card">
+      <div><span class="dashboard-kicker">Reporte</span><h2>Resumen diario</h2></div>
+      <div class="report-date-actions"><input id="dailyReportDate" type="date" value="${today()}" aria-label="Fecha del reporte"><button class="btn primary compact" data-action="daily-report">Compartir</button></div>
     </section>
 
     <div class="dashboard-section-head"><h2>Últimos entrenamientos</h2><button class="text-link" data-action="history">Ver todo</button></div>
@@ -513,12 +517,12 @@ function trainHTML(){
   const draft=loadWorkoutDraft();
   return `<main class="screen section-screen train-screen">
     <div class="section-app-header train-header">
-      <div><span class="dashboard-kicker">Rutina semanal</span><h1>Entrenar</h1><p>Selecciona una sesión. Los últimos valores se cargan automáticamente y puedes cambiarlos durante el entrenamiento.</p></div>
+      <div><span class="dashboard-kicker">Rutina semanal</span><h1>Entrenar</h1></div>
       <div class="train-header-actions"><button class="btn ghost compact" data-train-history>Historial</button><div class="section-symbol"><svg viewBox="0 0 24 24"><path d="M5 8v8M8 6v12M16 6v12M19 8v8M8 12h8M3 10v4M21 10v4"/></svg></div></div>
     </div>
-    ${draft?`<section class="card resume-workout-card"><div><span class="section-kicker">Entrenamiento en curso</span><h3>${esc(draft.routine)}</h3><p class="subtle">Tu sesión quedó guardada automáticamente.</p></div><button class="btn primary" data-resume-workout>Continuar</button></section>`:''}
+    ${draft?`<section class="card resume-workout-card"><div><span class="section-kicker">Entrenamiento en curso</span><h3>${esc(draft.routine)}</h3></div><button class="btn primary" data-resume-workout>Continuar</button></section>`:''}
     <div class="routine-grid routine-grid-v9">${Object.keys(ROUTINES).map((n,i)=>`<button class="routine-btn routine-v9 routine-tone-${i+1}" data-routine="${esc(n)}"><span class="routine-index">0${i+1}</span><div><strong>${esc(n)}</strong><small>${ROUTINES[n].length} ejercicios</small></div><span class="card-arrow">→</span></button>`).join('')}</div>
-    <div class="info-strip"><span>RIR por serie</span><span>Izq / Der</span><span>Descanso 3 min</span><span>Autoguardado</span></div>
+    
   </main>`;
 }
 
@@ -791,53 +795,47 @@ async function saveSession(){
 }
 
 async function measureHTML(){
-  const measurements=(await getAll(STORE_MEASUREMENTS)).sort((a,b)=>a.date.localeCompare(b.date)||a.createdAt-b.createdAt);
-  const weightRows=measurements.filter(x=>num(x.weight)!==null);
-  const currentWeight=weightRows.at(-1)||null;
-  const bodyRows=measurements.filter(hasBodyMeasurementData);
-  const lastBody=bodyRows.at(-1)||null;
+  const measurements=(await getAll(STORE_MEASUREMENTS)).sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||0)-(b.createdAt||0));
+  const weightRows=measurements.filter(x=>num(x.weight)!==null); const currentWeight=weightRows.at(-1)||null;
+  const bodyRows=measurements.filter(hasBodyMeasurementData); const lastBody=bodyRows.at(-1)||null;
   const effective=await effectiveMeasurementAt(today());
-  return `<main class="screen section-screen measure-screen">
-    <div class="section-app-header measure-header compact-measure-header">
-      <div><span class="dashboard-kicker">Seguimiento</span><h1>Mediciones</h1></div>
-      <div class="section-symbol"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 7v3M11 7v2M14 7v3M17 7v2"/></svg></div>
-    </div>
-
-    <section class="weight-focus-card">
-      <span class="dashboard-kicker">Peso actual</span>
-      <div class="weight-focus-value"><strong>${currentWeight?.weight??effective?.weight??'—'}</strong><span>${(currentWeight?.weight??effective?.weight)?'kg':''}</span></div>
-      <small>${currentWeight?.date?`${fmtDate(currentWeight.date)}${currentWeight.createdAt?` · ${new Date(currentWeight.createdAt).toLocaleTimeString('es-MX',{hour:'numeric',minute:'2-digit'})}`:''}`:'Sin peso registrado'}</small>
-      <form id="dailyWeightForm" class="quick-weight-form">
-        <input name="date" type="date" value="${today()}" aria-label="Fecha del peso">
-        <div class="quick-weight-input"><input name="weight" inputmode="decimal" type="number" step="0.1" min="20" max="400" value="${currentWeight?.weight??effective?.weight??''}" placeholder="Peso"><span>kg</span></div>
-        <button class="btn primary" type="submit">Guardar peso</button>
-      </form>
+  return `<main class="screen section-screen measure-screen clean-measure-screen">
+    <section class="weight-entry-card measure-tint-card">
+      <div class="weight-entry-top"><span class="dashboard-kicker">Peso</span><span id="weightSaveStatus" class="auto-save-status">Automático</span></div>
+      <div class="weight-entry-control"><input id="dailyWeightInput" inputmode="decimal" type="number" step="0.1" min="20" max="400" value="${currentWeight?.weight??effective?.weight??''}" placeholder="—" aria-label="Peso en kilogramos"><span>kg</span></div>
     </section>
-
-    <section class="measurement-separator"><div><span class="dashboard-kicker">Semanal</span><h2>Medidas corporales</h2><p>${lastBody?.date?`Última: ${fmtDate(lastBody.date)}`:'Aún no tienes mediciones corporales.'}</p></div></section>
-    <form id="measureForm" class="card measurement-form body-measure-form">
-      <div class="field"><label>Fecha</label><input name="date" type="date" value="${today()}" required></div>
-      <div class="form-grid">${BODY_MEASURE_FIELDS.map(([k,l,u])=>`<div class="field"><label>${l} <span>${u}</span></label><input name="${k}" inputmode="decimal" type="number" step="0.1" value="${esc(effective?.[k]??'')}"></div>`).join('')}</div>
-      <div class="field"><label>Notas</label><textarea name="notes" placeholder="Condiciones de medición, observaciones…"></textarea></div>
-      <button class="btn primary block" type="submit">Guardar medidas corporales</button>
-    </form>
+    <section class="body-measure-launch card">
+      <div><span class="dashboard-kicker">Semanal</span><h2>Medidas corporales</h2>${lastBody?.date?`<small>Última · ${fmtDate(lastBody.date)}</small>`:''}</div>
+      <button class="btn primary compact" data-open-body-measures>${lastBody?'Actualizar':'Registrar'}</button>
+    </section>
+    <div id="measureSheetHost"></div>
   </main>`;
 }
-async function saveDailyWeight(form){
-  const fd=new FormData(form); const date=String(fd.get('date')||today()); const weight=String(fd.get('weight')||'').trim();
-  if(!weight){alert('Escribe tu peso.');return;}
-  const all=await getAll(STORE_MEASUREMENTS);
-  let obj=all.filter(m=>m.kind==='weight' && m.date===date).sort((a,b)=>b.createdAt-a.createdAt)[0];
-  if(obj){obj={...obj,weight,updatedAt:Date.now()};}
-  else obj={id:uid('measure'),kind:'weight',date,weight,createdAt:Date.now()};
-  await put(STORE_MEASUREMENTS,obj); await getNutritionGoal(); await render();
+function openBodyMeasureSheet(){
+  const host=document.getElementById('measureSheetHost'); if(!host)return;
+  effectiveMeasurementAt(today()).then(effective=>{
+    host.innerHTML=`<div class="workout-sheet-backdrop measure-sheet-backdrop" data-close-measure-sheet><div class="workout-sheet measure-entry-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Medidas corporales</span><h3>Registro</h3></div><button class="icon-btn icon-square" data-close-measure-sheet>✕</button></div><form id="measureForm"><div class="form-grid">${BODY_MEASURE_FIELDS.map(([k,l,u])=>`<div class="field"><label>${l} <span>${u}</span></label><input name="${k}" inputmode="decimal" type="number" step="0.1" value="${esc(effective?.[k]??'')}"></div>`).join('')}</div><div class="field"><label>Notas</label><textarea name="notes" placeholder="Opcional"></textarea></div><button class="btn primary block" type="submit">Guardar</button></form></div></div>`;
+    host.querySelectorAll('[data-close-measure-sheet]').forEach(x=>x.addEventListener('click',()=>host.innerHTML=''));
+    document.getElementById('measureForm')?.addEventListener('submit',async e=>{e.preventDefault();await saveMeasurement(e.currentTarget);host.innerHTML='';});
+    document.getElementById('measureForm')?.addEventListener('focusin',e=>{if(e.target.matches('input,textarea'))setTimeout(()=>e.target.scrollIntoView({block:'center'}),180);});
+  });
+}
+async function saveDailyWeightValue(value){
+  const weight=String(value??'').trim(); const n=+weight; if(!weight || !Number.isFinite(n) || n<20 || n>400) return false;
+  const date=today(); const all=await getAll(STORE_MEASUREMENTS);
+  let obj=all.filter(m=>m.kind==='weight' && m.date===date).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))[0];
+  if(obj) obj={...obj,weight:String(n),updatedAt:Date.now()}; else obj={id:uid('measure'),kind:'weight',date,weight:String(n),createdAt:Date.now()};
+  await put(STORE_MEASUREMENTS,obj); await getNutritionGoal(); return true;
+}
+function queueDailyWeightSave(input){
+  clearTimeout(weightAutoSaveTimer); const status=document.getElementById('weightSaveStatus'); if(status)status.textContent='Guardando…';
+  weightAutoSaveTimer=setTimeout(async()=>{const ok=await saveDailyWeightValue(input.value);if(status)status.textContent=ok?'Guardado':'Revisa el valor';},500);
 }
 async function saveMeasurement(form){
   const previous=await effectiveMeasurementAt(today());
   const fd=new FormData(form);
-  const obj={id:uid('measure'),kind:'body',createdAt:Date.now()};
+  const obj={id:uid('measure'),kind:'body',createdAt:Date.now(),date:today()};
   for(const [k,v] of fd.entries()) obj[k]=v;
-  if(!obj.date) obj.date=today();
   for(const [k] of BODY_MEASURE_FIELDS){
     if(!String(obj[k]??'').trim() && previous?.[k]!==undefined && previous?.[k]!==null && String(previous[k]).trim()!=='') obj[k]=String(previous[k]);
   }
@@ -877,17 +875,18 @@ async function showMeasurement(id){
 }
 
 async function progressHTML(){
-  const measures=(await getAll(STORE_MEASUREMENTS)).sort((a,b)=>a.date.localeCompare(b.date)); const selected='weight';
+  const measures=(await getAll(STORE_MEASUREMENTS)).sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||0)-(b.createdAt||0)); const selected='weight';
   const savedSessions=await getAll(STORE_SESSIONS); const exerciseNames=[...new Set([...Object.values(ROUTINES).flat().map(x=>x[0]),...savedSessions.flatMap(s=>(s.exercises||[]).map(e=>e.name))])].sort((a,b)=>a.localeCompare(b,'es'));
-  const pts=measures.map(m=>({date:m.date,val:num(m.weight)})).filter(x=>x.val!==null);
-  const latest=pts.at(-1), previous=pts.at(-2); const delta=latest&&previous?latest.val-previous.val:null;
+  const pts=measures.map(m=>({date:m.date,val:num(m.weight),createdAt:m.createdAt||0})).filter(x=>x.val!==null);
+  const first=pts[0], latest=pts.at(-1); const total=latest&&first?latest.val-first.val:null;
   return `<main class="screen"><div class="topbar"><div><div class="subtle eyebrow">Tendencias</div><h1>Progreso</h1></div></div>
-    <div class="progress-stats">
+    <div class="progress-stats progress-stats-3">
+      <div class="progress-stat"><span>Peso inicial</span><strong>${first?`${round(first.val,1)} kg`:'—'}</strong><small>${first?fmtDate(first.date):'Sin datos'}</small></div>
       <div class="progress-stat"><span>Peso actual</span><strong>${latest?`${round(latest.val,1)} kg`:'—'}</strong><small>${latest?fmtDate(latest.date):'Sin datos'}</small></div>
-      <div class="progress-stat"><span>Último cambio</span><strong class="${delta===null?'':delta<=0?'good-delta':'neutral-delta'}">${delta===null?'—':`${delta>0?'+':''}${round(delta,1)} kg`}</strong><small>${previous?'vs. medición anterior':'Necesitas 2 registros'}</small></div>
+      <div class="progress-stat"><span>Desde inicio</span><strong class="${total===null?'':total<=0?'good-delta':'neutral-delta'}">${total===null?'—':`${total>0?'+':''}${round(total,1)} kg`}</strong><small>vs. primer registro</small></div>
     </div>
     <section class="card chart-card"><div class="field"><label>Medición</label><select id="metricSelect">${MEASURE_FIELDS.map(([k,l])=>`<option value="${k}" ${k===selected?'selected':''}>${l}</option>`).join('')}</select></div><div id="chartArea">${chartHTML(measures,selected)}</div></section>
-    <div class="section-title"><h2>Rendimiento</h2></div><section class="card"><div class="field"><label>Ejercicio</label><select id="exerciseSelect"><option value="">Seleccionar ejercicio</option>${exerciseNames.map(n=>`<option>${esc(n)}</option>`).join('')}</select></div><div id="exerciseProgress" class="subtle exercise-progress-placeholder">Selecciona un ejercicio para ver sus últimas sesiones.</div></section>
+    <div class="section-title"><h2>Rendimiento</h2></div><section class="card"><div class="field"><label>Ejercicio</label><select id="exerciseSelect"><option value="">Seleccionar ejercicio</option>${exerciseNames.map(n=>`<option>${esc(n)}</option>`).join('')}</select></div><div id="exerciseProgress" class="subtle exercise-progress-placeholder">Selecciona un ejercicio.</div></section>
   </main>`;
 }
 function chartHTML(data,key){
@@ -960,23 +959,22 @@ function calculateNutritionGoal(input){
   const carbs=Math.max(0,(targetCalories-protein*4-fat*9)/4);
   return {...input,trm,expenditure,targetCalories,protein,fat,carbs,updatedAt:Date.now()};
 }
-async function getNutritionGoal(){
+async function nutritionGoalForDate(referenceDate=today()){
   let goal=await getSetting('nutritionGoal');
-  const ref=await measurementReference();
+  const ref=await measurementReference(referenceDate);
   if(!goal) goal={...DEFAULT_NUTRITION};
-
-  // Desde v9.3 el cálculo es siempre automático. Incluso si una versión anterior
-  // dejó guardado el modo manual, se migra automáticamente al modo automático.
-  const source={...DEFAULT_NUTRITION,...goal,
-    key:'nutritionGoal',
-    mode:'auto',
+  return calculateNutritionGoal({...DEFAULT_NUTRITION,...goal,
+    key:'nutritionGoal',mode:'auto',
     calcWeight:ref.weight??num(goal.calcWeight)??DEFAULT_NUTRITION.calcWeight,
     height:ref.height??num(goal.height)??DEFAULT_NUTRITION.height,
     age:ref.age??num(goal.age)??DEFAULT_NUTRITION.age,
     birthDate:ref.birthDate||goal.birthDate||'',
     measurementDate:ref.latest?.date||goal.measurementDate||''
-  };
-  const calculated=calculateNutritionGoal(source);
+  });
+}
+async function getNutritionGoal(){
+  const goal=await getSetting('nutritionGoal');
+  const calculated=await nutritionGoalForDate(today());
   const fields=['calcWeight','height','age','birthDate','measurementDate','activity','deficit','proteinPerKg','fatPerKg','targetCalories','protein','fat','carbs','trm','expenditure'];
   const changed=!goal || fields.some(k=>{
     if(typeof calculated[k]==='number' || typeof goal?.[k]==='number') return Math.abs((+calculated[k]||0)-(+goal?.[k]||0))>0.01;
@@ -1026,17 +1024,17 @@ async function foodHTML(){
   return `<main class="screen"><div class="topbar"><div><div class="subtle">Calorías y macros</div><h1>Comida</h1></div><span class="status ok">● Local</span></div>${tabs}${body}</main>`;
 }
 async function foodTodayHTML(){
-  const day=await getFoodDay(foodSelectedDate,true); const totals=foodDayTotals(day); const goal=await getNutritionGoal(); const templates=await getAll(STORE_FOOD_TEMPLATES); const calPct=Math.min(100,macroPct(totals.kcal,goal.targetCalories)); const calRemain=goal.targetCalories-totals.kcal; const ring=buildMealRing(day,goal.targetCalories);
-  return `<div class="date-nav"><button class="icon-btn date-btn" data-food-date="-1">‹</button><div><strong>${foodSelectedDate===today()?'HOY':fmtDate(foodSelectedDate)}</strong><input id="foodDateInput" type="date" value="${foodSelectedDate}"></div><button class="icon-btn date-btn" data-food-date="1">›</button></div>
+  const day=await getFoodDay(foodSelectedDate,true); const totals=foodDayTotals(day); const goal=foodSelectedDate===today()?await getNutritionGoal():await nutritionGoalForDate(foodSelectedDate); const templates=await getAll(STORE_FOOD_TEMPLATES); const calRemain=goal.targetCalories-totals.kcal; const ring=buildMealRing(day,goal.targetCalories);
+  return `<div class="date-nav clean-date-nav"><button class="icon-btn date-btn" data-food-date="-1">‹</button><div class="date-nav-center"><button class="food-date-display" data-food-date-picker>${foodSelectedDate===today()?'HOY · ':''}${fmtDate(foodSelectedDate)}</button><input id="foodDateInput" class="hidden-date-input" type="date" value="${foodSelectedDate}" aria-label="Seleccionar fecha"></div><button class="icon-btn date-btn" data-food-date="1">›</button></div>
     <section class="card nutrition-summary premium-nutrition">
       <div class="calorie-ring" style="background:${ring.background}"><div><strong>${round(totals.kcal)}</strong><span>de ${round(goal.targetCalories)}</span><small>kcal</small></div></div>
-      <div class="nutrition-copy"><div class="section-kicker">Calorías de hoy</div><h2>${calRemain>=0?`${round(calRemain)} kcal restantes`:`${round(Math.abs(calRemain))} kcal sobre objetivo`}</h2><p class="subtle">Registra tus alimentos y Fit Log ajusta el resumen automáticamente.</p>${ring.legend?`<div class="ring-legend">${ring.legend}</div>`:''}</div>
+      <div class="nutrition-copy"><div class="section-kicker">Calorías</div><h2>${calRemain>=0?`${round(calRemain)} kcal restantes`:`${round(Math.abs(calRemain))} kcal sobre objetivo`}</h2>${ring.legend?`<div class="ring-legend">${ring.legend}</div>`:''}</div>
     </section>
     <div class="macro-grid">${macroBar('protein','Proteína',totals.protein,goal.protein,'g')}${macroBar('fat','Grasa',totals.fat,goal.fat,'g')}${macroBar('carbs','Carbohidratos',totals.carbs,goal.carbs,'g')}</div>
     ${day.meals.map((meal,mi)=>mealHTML(meal,mi)).join('')}
     <button class="btn ghost block extra-meal-btn" data-add-extra-meal>+ Agregar comida</button>
-    <section class="card template-card"><div class="row between"><div><div class="section-kicker">Atajos</div><strong>Plantillas</strong><div class="subtle">Guarda un día frecuente o cárgalo de nuevo.</div></div><button class="btn ghost compact" data-save-food-template>Guardar día</button></div>
-      ${templates.length?`<div class="template-list">${templates.map(t=>`<button class="chip template-chip" data-load-food-template="${t.id}">${esc(t.name)}</button>`).join('')}</div>`:'<div class="subtle" style="margin-top:10px">Todavía no tienes plantillas.</div>'}
+    <section class="card template-card compact-template-card"><div class="row between"><div><span class="section-kicker">Plantillas</span></div><button class="btn ghost compact" data-save-food-template>Guardar día</button></div>
+      ${templates.length?`<div class="template-list">${templates.map(t=>`<button class="chip template-chip" data-load-food-template="${t.id}">${esc(t.name)}</button>`).join('')}</div>`:'<div class="subtle" style="margin-top:8px">Sin plantillas.</div>'}
     </section><div id="foodSheetHost"></div>`;
 }
 function foodQtyStep(unit){
@@ -1085,8 +1083,10 @@ function mealHTML(meal,mi){
 }
 function openCheatMealSheet(mi){
   const host=document.getElementById('foodSheetHost'); if(!host)return;
-  host.innerHTML=`<div class="workout-sheet-backdrop" data-close-food-sheet><div class="workout-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Comida libre</span><h3>Registrar aproximado</h3></div><button class="icon-btn icon-square" data-close-food-sheet>✕</button></div><form id="cheatMealForm"><div class="field"><label>Qué comiste</label><input name="name" placeholder="Ej. 2 dogos de fiesta" required></div><div class="field"><label>Cantidad / detalles</label><textarea name="detail" placeholder="Ej. 2 piezas, poco chorizo, cebolla, queso y aderezo"></textarea></div><div class="field"><label>Calorías estimadas</label><input name="kcal" type="number" min="0" step="1" required></div><div class="form-grid"><div class="field"><label>Proteína estimada (g)</label><input name="protein" type="number" min="0" step="0.1" value="0"></div><div class="field"><label>Grasa estimada (g)</label><input name="fat" type="number" min="0" step="0.1" value="0"></div><div class="field"><label>Carbohidratos estimados (g)</label><input name="carbs" type="number" min="0" step="0.1" value="0"></div></div><div class="notice warn">Puedes usar una estimación aproximada. Si solo conoces las calorías, deja los macros en 0 y al menos el total calórico quedará contabilizado.</div><button class="btn primary block" type="submit" style="margin-top:12px">Agregar comida libre</button></form></div></div>`;
+  host.innerHTML=`<div class="workout-sheet-backdrop food-sheet-backdrop" data-close-food-sheet><div class="workout-sheet food-entry-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Comida libre</span><h3>Registrar aproximado</h3></div><button class="icon-btn icon-square" data-close-food-sheet>✕</button></div><form id="cheatMealForm"><div class="field"><label>Qué comiste</label><input name="name" placeholder="Ej. 2 dogos de fiesta" required></div><div class="field"><label>Cantidad / detalles</label><textarea name="detail" placeholder="Ej. 2 piezas, poco chorizo, cebolla, queso y aderezo"></textarea></div><div class="field"><label>Calorías estimadas</label><input name="kcal" type="number" min="0" step="1" required></div><div class="form-grid"><div class="field"><label>Proteína estimada (g)</label><input name="protein" type="number" min="0" step="0.1" value="0"></div><div class="field"><label>Grasa estimada (g)</label><input name="fat" type="number" min="0" step="0.1" value="0"></div><div class="field"><label>Carbohidratos estimados (g)</label><input name="carbs" type="number" min="0" step="0.1" value="0"></div></div><div class="notice warn">Puedes usar una estimación aproximada. Si solo conoces las calorías, deja los macros en 0 y al menos el total calórico quedará contabilizado.</div><button class="btn primary block" type="submit" style="margin-top:12px">Agregar comida libre</button></form></div></div>`;
   host.querySelectorAll('[data-close-food-sheet]').forEach(x=>x.addEventListener('click',()=>host.innerHTML=''));
+  const cheatForm=document.getElementById('cheatMealForm');
+  cheatForm?.addEventListener('focusin',e=>{if(e.target.matches('input,textarea'))setTimeout(()=>e.target.scrollIntoView({block:'center',behavior:'smooth'}),250);});
   document.getElementById('cheatMealForm')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);const day=await getFoodDay(foodSelectedDate,true);const meal=day.meals[mi];if(!meal)return;meal.items.push({id:uid('item'),foodId:'',name:String(fd.get('name')||'Comida libre').trim(),detailText:String(fd.get('detail')||'').trim(),qty:1,unit:'aprox',baseQty:1,kcal:+fd.get('kcal')||0,protein:+fd.get('protein')||0,fat:+fd.get('fat')||0,carbs:+fd.get('carbs')||0,perBase:{kcal:+fd.get('kcal')||0,protein:+fd.get('protein')||0,fat:+fd.get('fat')||0,carbs:+fd.get('carbs')||0},manualEstimate:true,addedAt:Date.now()});day.updatedAt=Date.now();await put(STORE_FOOD_DAYS,day);host.innerHTML='';render();});
 }
 async function foodHistoryHTML(){
@@ -1197,12 +1197,26 @@ async function saveFoodTemplate(){
   const name=prompt('Nombre de la plantilla','Día habitual'); if(!name?.trim()) return;
   await put(STORE_FOOD_TEMPLATES,{id:uid('template'),name:name.trim(),createdAt:Date.now(),meals:clone(day.meals)}); render();
 }
+async function templateMealsWithCurrentFoods(meals){
+  const foods=await getAll(STORE_FOODS); const byId=new Map(foods.map(f=>[f.id,f]));
+  return clone(meals||[]).map((m,mi)=>({...m,id:`meal-${mi}`,items:(m.items||[]).map(it=>{
+    const copy={...it,id:uid('item'),addedAt:Date.now()};
+    if(copy.manualEstimate || !copy.foodId) return copy;
+    const food=byId.get(copy.foodId);
+    if(!food?.configured) return copy;
+    const qty=+copy.qty||+food.baseQty||1; const scale=qty/(+food.baseQty||1);
+    return {...copy,name:food.name,brand:food.brand||'',unit:food.unit,baseQty:+food.baseQty,
+      kcal:(+food.kcal||0)*scale,protein:(+food.protein||0)*scale,fat:(+food.fat||0)*scale,carbs:(+food.carbs||0)*scale,
+      perBase:{kcal:+food.kcal||0,protein:+food.protein||0,fat:+food.fat||0,carbs:+food.carbs||0}};
+  })}));
+}
 async function loadFoodTemplate(id){
   const t=await getOne(STORE_FOOD_TEMPLATES,id); if(!t) return; const day=await getFoodDay(foodSelectedDate,true);
   if(day.meals.some(m=>m.items.length) && !confirm('Este día ya tiene alimentos. ¿Reemplazarlos por la plantilla?')) return;
-  day.meals=clone(t.meals).map((m,mi)=>({...m,id:`meal-${mi}`,items:(m.items||[]).map(it=>({...it,id:uid('item'),addedAt:Date.now()}))})); day.updatedAt=Date.now(); await put(STORE_FOOD_DAYS,day); render();
+  day.meals=await templateMealsWithCurrentFoods(t.meals); day.updatedAt=Date.now(); await put(STORE_FOOD_DAYS,day); render();
 }
 let nutritionAutoSaveTimer=null;
+let weightAutoSaveTimer=null;
 async function saveNutritionGoal(form){
   const fd=new FormData(form);
   const ref=await measurementReference();
@@ -1262,12 +1276,14 @@ async function renderFoodPreserveScroll(){
 function bindFoodEvents(){
   document.querySelectorAll('[data-food-tab]').forEach(b=>b.addEventListener('click',()=>{foodTab=b.dataset.foodTab;foodScreen='main';render();}));
   document.querySelectorAll('[data-food-date]').forEach(b=>b.addEventListener('click',()=>{foodSelectedDate=addDays(foodSelectedDate,+b.dataset.foodDate);render();}));
-  document.getElementById('foodDateInput')?.addEventListener('change',e=>{foodSelectedDate=e.target.value||today();render();});
+  const foodDateInput=document.getElementById('foodDateInput');
+  document.querySelector('[data-food-date-picker]')?.addEventListener('click',()=>{try{foodDateInput?.showPicker?.();}catch{foodDateInput?.click();}});
+  foodDateInput?.addEventListener('change',e=>{foodSelectedDate=e.target.value||today();render();});
   document.querySelectorAll('[data-add-food]').forEach(b=>b.addEventListener('click',()=>{foodPickerMealIndex=+b.dataset.addFood;foodPickerFoodId=null;foodScreen='picker';render();}));
   document.querySelectorAll('[data-add-cheat]').forEach(b=>b.addEventListener('click',()=>openCheatMealSheet(+b.dataset.addCheat)));
   document.querySelector('[data-add-extra-meal]')?.addEventListener('click',openAddMealSheet);
   document.querySelectorAll('[data-remove-food-item]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const [mi,ii]=b.dataset.removeFoodItem.split(':').map(Number);removeFoodItem(mi,ii);}));
-  document.querySelectorAll('[data-food-qty-step]').forEach(b=>b.addEventListener('click',async e=>{e.stopPropagation();const [mi,ii,dir]=b.dataset.foodQtyStep.split(':').map(Number);await adjustFoodItemQty(mi,ii,dir);await renderFoodPreserveScroll();}));
+  document.querySelectorAll('[data-food-qty-step]').forEach(b=>{b.addEventListener('dblclick',e=>e.preventDefault());b.addEventListener('click',async e=>{e.preventDefault();e.stopPropagation();const [mi,ii,dir]=b.dataset.foodQtyStep.split(':').map(Number);await adjustFoodItemQty(mi,ii,dir);await renderFoodPreserveScroll();});});
   document.querySelectorAll('[data-food-qty-input]').forEach(inp=>{
     inp.addEventListener('click',e=>e.stopPropagation());
     inp.addEventListener('focus',e=>e.currentTarget.select());
@@ -1413,7 +1429,7 @@ async function applyAppUpdate(){
 
 async function buildDailyReport(date){
   const sessions=(await getAll(STORE_SESSIONS)).filter(s=>s.date===date).sort((a,b)=>a.createdAt-b.createdAt);
-  const day=await getFoodDay(date,false); const totals=day?foodDayTotals(day):emptyMacros(); const goal=await getNutritionGoal();
+  const day=await getFoodDay(date,false); const totals=day?foodDayTotals(day):emptyMacros(); const goal=await nutritionGoalForDate(date);
   const m=await effectiveMeasurementAt(date);
   const lines=[`FIT LOG — ${fmtDate(date)}`];
   lines.push('',`MEDICIONES`);
@@ -1449,7 +1465,7 @@ function bindViewEvents(){
   document.querySelectorAll('[data-action="progress-now"]').forEach(b=>b.addEventListener('click',()=>setView('progress')));
   document.querySelector('[data-action="history"]')?.addEventListener('click',()=>{currentView='history';historyTab='sessions';render();});
   document.querySelector('[data-train-history]')?.addEventListener('click',()=>{currentView='history';historyTab='sessions';render();});
-  document.querySelectorAll('[data-action="daily-report"]')?.forEach(b=>b.addEventListener('click',()=>shareDailyReport(b.dataset.reportDate||today())));
+  document.querySelectorAll('[data-action="daily-report"]')?.forEach(b=>b.addEventListener('click',()=>shareDailyReport(document.getElementById('dailyReportDate')?.value||b.dataset.reportDate||today())));
   document.querySelector('[data-action="history-back"]')?.addEventListener('click',()=>setView('home'));
   const settingsSheet=document.getElementById('settingsSheet');
   document.querySelector('[data-action="open-settings"]')?.addEventListener('click',()=>settingsSheet?.classList.remove('hide'));
@@ -1461,8 +1477,10 @@ function bindViewEvents(){
   document.querySelector('[data-action="export-backup"]')?.addEventListener('click',exportBackup);
   document.querySelector('[data-action="import-backup"]')?.addEventListener('click',()=>document.getElementById('backupFileInput')?.click());
   document.getElementById('backupFileInput')?.addEventListener('change',async e=>{const file=e.target.files?.[0];if(file) await importBackupFile(file);e.target.value='';});
-  document.getElementById('dailyWeightForm')?.addEventListener('submit',e=>{e.preventDefault();saveDailyWeight(e.currentTarget)});
-  document.getElementById('measureForm')?.addEventListener('submit',e=>{e.preventDefault();saveMeasurement(e.currentTarget)});
+  const dailyWeightInput=document.getElementById('dailyWeightInput');
+  dailyWeightInput?.addEventListener('input',e=>queueDailyWeightSave(e.currentTarget));
+  dailyWeightInput?.addEventListener('blur',async e=>{clearTimeout(weightAutoSaveTimer);const ok=await saveDailyWeightValue(e.currentTarget.value);const status=document.getElementById('weightSaveStatus');if(status)status.textContent=ok?'Guardado':'Revisa el valor';});
+  document.querySelector('[data-open-body-measures]')?.addEventListener('click',openBodyMeasureSheet);
   document.getElementById('birthDateInput')?.addEventListener('change',e=>{const age=ageFromBirthDate(e.target.value,today());const el=document.getElementById('calculatedAge');if(el)el.textContent=age!==null?`${age} años`:'—';});
   document.querySelectorAll('[data-history-tab]').forEach(b=>b.addEventListener('click',()=>{historyTab=b.dataset.historyTab;render();}));
   document.querySelectorAll('[data-session-id]').forEach(b=>b.addEventListener('click',()=>showSession(b.dataset.sessionId)));
