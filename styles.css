@@ -511,3 +511,30 @@ body{font-size:16px}
   .chart-label{font-size:16px!important}
   .chart-value{font-size:22px!important}
 }
+
+
+/* v10.4 progreso más limpio */
+.progress-delta-card{display:flex;align-items:center;justify-content:center;min-height:168px;text-align:center;margin-bottom:14px}
+.progress-delta-card strong{font-size:72px;line-height:1;letter-spacing:-.05em;display:block}
+.progress-chart-card{padding:16px 16px 18px}
+.clean-select{width:100%;height:74px;border-radius:24px;border:1px solid var(--line);background:#fff;padding:0 22px;font-size:26px;font-weight:800;color:var(--text);margin-bottom:18px}
+.clean-exercise-card{padding:22px 16px}
+.exercise-progress-placeholder:empty{display:none}
+.chart-value-lg{font-size:26px;font-weight:900;fill:#26324b}
+.chart-date{font-size:17px;font-weight:800;fill:#667085}
+.chart-line{stroke-width:4}
+.chart-dot{fill:#5c7cfa}
+#chartArea .premium-chart{padding:0;background:linear-gradient(180deg,#fbfcff,#fff)}
+.topbar .subtle.eyebrow{display:none}
+@media(max-width:620px){
+  .progress-delta-card{min-height:140px}
+  .progress-delta-card strong{font-size:58px}
+  .clean-select{height:68px;font-size:22px;padding:0 18px;margin-bottom:16px}
+  .chart-value-lg{font-size:22px}
+  .chart-date{font-size:14px}
+}
+@media(max-width:390px){
+  .progress-delta-card strong{font-size:50px}
+  .chart-value-lg{font-size:19px}
+  .chart-date{font-size:13px}
+}

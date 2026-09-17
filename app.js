@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '10.3';
+const APP_VERSION = '10.4';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -878,28 +878,25 @@ async function progressHTML(){
   const savedSessions=await getAll(STORE_SESSIONS); const exerciseNames=[...new Set([...Object.values(ROUTINES).flat().map(x=>x[0]),...savedSessions.flatMap(s=>(s.exercises||[]).map(e=>e.name))])].sort((a,b)=>a.localeCompare(b,'es'));
   const pts=measures.map(m=>({date:m.date,val:num(m.weight),createdAt:m.createdAt||0})).filter(x=>x.val!==null);
   const first=pts[0], latest=pts.at(-1); const total=latest&&first?latest.val-first.val:null;
-  return `<main class="screen"><div class="topbar"><div><div class="subtle eyebrow">Tendencias</div><h1>Progreso</h1></div></div>
-    <div class="progress-stats progress-stats-3">
-      <div class="progress-stat"><span>Peso inicial</span><strong>${first?`${round(first.val,1)} kg`:'—'}</strong><small>${first?fmtDate(first.date):'Sin datos'}</small></div>
-      <div class="progress-stat"><span>Peso actual</span><strong>${latest?`${round(latest.val,1)} kg`:'—'}</strong><small>${latest?fmtDate(latest.date):'Sin datos'}</small></div>
-      <div class="progress-stat"><span>Desde inicio</span><strong class="${total===null?'':total<=0?'good-delta':'neutral-delta'}">${total===null?'—':`${total>0?'+':''}${round(total,1)} kg`}</strong><small>vs. primer registro</small></div>
-    </div>
-    <section class="card chart-card"><div class="field"><label>Medición</label><select id="metricSelect">${MEASURE_FIELDS.map(([k,l])=>`<option value="${k}" ${k===selected?'selected':''}>${l}</option>`).join('')}</select></div><div id="chartArea">${chartHTML(measures,selected)}</div></section>
-    <div class="section-title"><h2>Rendimiento</h2></div><section class="card"><div class="field"><label>Ejercicio</label><select id="exerciseSelect"><option value="">Seleccionar ejercicio</option>${exerciseNames.map(n=>`<option>${esc(n)}</option>`).join('')}</select></div><div id="exerciseProgress" class="subtle exercise-progress-placeholder">Selecciona un ejercicio.</div></section>
+  return `<main class="screen"><div class="topbar"><div><h1>Progreso</h1></div></div>
+    <section class="card progress-delta-card"><strong class="${total===null?'':total<=0?'good-delta':'neutral-delta'}">${total===null?'—':`${total>0?'+':''}${round(total,1)} kg`}</strong></section>
+    <section class="card chart-card progress-chart-card"><select id="metricSelect" class="clean-select">${MEASURE_FIELDS.map(([k,l])=>`<option value="${k}" ${k===selected?'selected':''}>${l}</option>`).join('')}</select><div id="chartArea">${chartHTML(measures,selected)}</div></section>
+    <section class="card clean-exercise-card"><select id="exerciseSelect" class="clean-select"><option value="">Seleccionar ejercicio</option>${exerciseNames.map(n=>`<option>${esc(n)}</option>`).join('')}</select><div id="exerciseProgress" class="exercise-progress-placeholder"></div></section>
   </main>`;
 }
 function chartHTML(data,key){
   const pts=data.map(d=>({date:d.date,val:num(d[key])})).filter(x=>x.val!==null); if(pts.length<2) return '<div class="empty">Registra al menos dos mediciones para generar una gráfica.</div>';
-  const vals=pts.map(p=>p.val), min=Math.min(...vals), max=Math.max(...vals), rawSpan=(max-min)||1, margin=rawSpan*.18, lo=min-margin, hi=max+margin, span=hi-lo; const w=640,h=250,padX=34,padTop=25,padBottom=34;
-  const xy=pts.map((p,i)=>({x:padX+(i/(pts.length-1))*(w-padX*2),y:padTop+((hi-p.val)/span)*(h-padTop-padBottom),...p})); const path=xy.map((p,i)=>`${i?'L':'M'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' '); const area=`${path} L ${xy.at(-1).x.toFixed(1)} ${h-padBottom} L ${xy[0].x.toFixed(1)} ${h-padBottom} Z`;
+  const vals=pts.map(p=>p.val), min=Math.min(...vals), max=Math.max(...vals), rawSpan=(max-min)||1, margin=rawSpan*.20, lo=min-margin, hi=max+margin, span=hi-lo; const w=660,h=320,padX=44,padTop=32,padBottom=74;
+  const xy=pts.map((p,i)=>({x:padX+(i/(pts.length-1))*(w-padX*2),y:padTop+((hi-p.val)/span)*(h-padTop-padBottom),...p}));
+  const path=xy.map((p,i)=>`${i?'L':'M'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' '); const area=`${path} L ${xy.at(-1).x.toFixed(1)} ${h-padBottom} L ${xy[0].x.toFixed(1)} ${h-padBottom} Z`;
   const grid=[0,.5,1].map(t=>{const y=padTop+t*(h-padTop-padBottom);return `<line x1="${padX}" y1="${y}" x2="${w-padX}" y2="${y}" class="chart-grid"/>`}).join('');
-  return `<div class="chart-wrap premium-chart"><svg viewBox="0 0 ${w} ${h}" class="chart-svg" role="img"><defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5c7cfa" stop-opacity=".22"/><stop offset="100%" stop-color="#5c7cfa" stop-opacity="0"/></linearGradient></defs>${grid}<path d="${area}" class="chart-area"/><path d="${path}" class="chart-line"/>${xy.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="${i===xy.length-1?5:3.5}" class="chart-dot"/>${(i===0||i===xy.length-1)?`<text x="${p.x}" y="${Math.max(14,p.y-11)}" text-anchor="middle" class="chart-label chart-value">${p.val}</text><text x="${p.x}" y="${h-8}" text-anchor="middle" class="chart-label">${p.date.slice(5)}</text>`:''}`).join('')}</svg></div>`;
+  return `<div class="chart-wrap premium-chart"><svg viewBox="0 0 ${w} ${h}" class="chart-svg" role="img"><defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5c7cfa" stop-opacity=".22"/><stop offset="100%" stop-color="#5c7cfa" stop-opacity="0"/></linearGradient></defs>${grid}<path d="${area}" class="chart-area"/><path d="${path}" class="chart-line"/>${xy.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="${i===xy.length-1?6:4.5}" class="chart-dot"/><text x="${p.x}" y="${Math.max(20,p.y-14)}" text-anchor="middle" class="chart-label chart-value chart-value-lg">${round(p.val,1)}</text><text x="${p.x}" y="${h-12}" text-anchor="end" transform="rotate(-32 ${p.x} ${h-12})" class="chart-label chart-date">${fmtDate(p.date)}</text>`).join('')}</svg></div>`;
 }
 async function renderExerciseProgress(name){
-  const box=document.getElementById('exerciseProgress'); if(!name){box.textContent='Selecciona un ejercicio para ver sus últimas sesiones.';return;}
+  const box=document.getElementById('exerciseProgress'); if(!name){box.innerHTML='';return;}
   const sessions=(await getAll(STORE_SESSIONS)).sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt); const rows=[];
   for(const s of sessions){const e=s.exercises.find(x=>x.name===name);if(e){const sets=e.sets.filter(x=>setHasData(x,!!e.splitSides));if(sets.length)rows.push({date:s.date,sets,splitSides:!!e.splitSides});} if(rows.length===8)break;}
-  box.innerHTML=rows.length?`<div class="list">${rows.map(r=>`<div class="list-item"><strong>${fmtDate(r.date)}</strong><span class="subtle">${r.sets.map(x=>esc(formatSetText(x,r.splitSides))).join(' · ')}</span></div>`).join('')}</div>`:'No hay registros para este ejercicio.';
+  box.innerHTML=rows.length?`<div class="list" style="margin-top:14px">${rows.map(r=>`<div class="list-item"><strong>${fmtDate(r.date)}</strong><span class="subtle">${r.sets.map(x=>esc(formatSetText(x,r.splitSides))).join(' · ')}</span></div>`).join('')}</div>`:'';
 }
 
 function emptyMacros(){ return {kcal:0,protein:0,fat:0,carbs:0}; }

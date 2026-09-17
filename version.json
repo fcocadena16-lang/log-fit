@@ -1,6 +1,6 @@
 {
-  "version": "10.3",
+  "version": "10.4",
   "published": "2026-09-16",
   "name": "Fit Log",
-  "notes": "Medidas corporales con el mismo tono verde del peso; unidades de comida abreviadas y alineadas; números de Progreso más grandes."
+  "notes": "Progreso simplificado con cambio de peso centrado, gráfica con valores y fechas más grandes, y rendimiento sin textos repetidos."
 }
