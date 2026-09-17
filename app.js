@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.5';
+const APP_VERSION = '11.6';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -14,23 +14,23 @@ const STORE_FOOD_DAYS = 'foodDays';
 const STORE_FOOD_TEMPLATES = 'foodTemplates';
 
 const EXERCISE_FEELINGS = [
-  {value:'Muy ligero',label:'Ligero',icon:'😌'},
-  {value:'Bien',label:'Bien',icon:'🙂'},
-  {value:'Normal',label:'Normal',icon:'😐'},
-  {value:'Pesado',label:'Pesado',icon:'😣'},
-  {value:'Muy pesado',label:'Muy pesado',icon:'😫'},
-  {value:'Molestia',label:'Molestia',icon:'🤕'}
+  {value:'Muy ligero',label:'Muy ligero',tone:'green'},
+  {value:'Bien',label:'Bien',tone:'green'},
+  {value:'Normal',label:'Normal',tone:'yellow'},
+  {value:'Pesado',label:'Pesado',tone:'yellow'},
+  {value:'Muy pesado',label:'Muy pesado',tone:'red'},
+  {value:'Molestia',label:'Molestia',tone:'red'}
 ];
 const SESSION_FEELINGS = [
-  {value:'Excelente',label:'Excelente',icon:'😄'},
-  {value:'Bien',label:'Bien',icon:'🙂'},
-  {value:'Normal',label:'Normal',icon:'😐'},
-  {value:'Pesada',label:'Pesada',icon:'😣'},
-  {value:'Muy pesada',label:'Muy pesada',icon:'😫'},
-  {value:'Molestia',label:'Molestia',icon:'🤕'}
+  {value:'Excelente',label:'Excelente',tone:'green'},
+  {value:'Bien',label:'Bien',tone:'green'},
+  {value:'Normal',label:'Normal',tone:'yellow'},
+  {value:'Pesada',label:'Pesada',tone:'yellow'},
+  {value:'Muy pesada',label:'Muy pesada',tone:'red'},
+  {value:'Molestia',label:'Molestia',tone:'red'}
 ];
 function feelingPickerHTML(options,selected,attr,index=null){
-  return `<div class="feeling-picker">${options.map(f=>`<button type="button" class="feeling-option ${selected===f.value?'active':''}" ${attr}="${index===null?esc(f.value):index}" ${index===null?'':`data-value="${esc(f.value)}"`} aria-pressed="${selected===f.value?'true':'false'}"><span class="feeling-emoji">${f.icon}</span><small>${esc(f.label)}</small></button>`).join('')}</div>`;
+  return `<div class="feeling-picker">${options.map(f=>`<button type="button" class="feeling-option tone-${f.tone} ${selected===f.value?'active':''}" ${attr}="${index===null?esc(f.value):index}" ${index===null?'':`data-value="${esc(f.value)}"`} aria-pressed="${selected===f.value?'true':'false'}"><span>${esc(f.label)}</span></button>`).join('')}</div>`;
 }
 
 const ROUTINES = {

@@ -1009,3 +1009,17 @@ button,.btn,.icon-btn,.nav-btn,.tab,.chip,.routine-btn,.dash-card,.list-item,.ti
   .feeling-option .feeling-emoji{font-size:25px}
   .feeling-option small{font-size:8px}
 }
+
+
+/* v11.6 — sensaciones con texto y colores suaves */
+.feeling-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;width:100%}
+.feeling-option{min-height:46px;border-radius:16px;padding:10px 8px;display:flex;align-items:center;justify-content:center;box-shadow:none;font-weight:800;font-size:13px;line-height:1.1;text-align:center;color:#4f5c70;touch-action:manipulation}
+.feeling-option span{display:block;width:100%}
+.feeling-option.tone-green{background:#eef9f1;border:1px solid #d8eedf;color:#4f765c}
+.feeling-option.tone-yellow{background:#fff9e8;border:1px solid #f1e5b8;color:#806d34}
+.feeling-option.tone-red{background:#fff1f2;border:1px solid #f2d8dc;color:#8a5960}
+.feeling-option.active.tone-green{background:#dff3e5;border-color:#b8dec4;color:#356047;box-shadow:0 0 0 3px rgba(79,118,92,.08)}
+.feeling-option.active.tone-yellow{background:#fff1c9;border-color:#e6d07f;color:#725e22;box-shadow:0 0 0 3px rgba(128,109,52,.08)}
+.feeling-option.active.tone-red{background:#fce1e4;border-color:#e8b9c0;color:#7e414a;box-shadow:0 0 0 3px rgba(138,89,96,.08)}
+.feeling-option.active{transform:translateY(-1px)}
+@media(max-width:520px){.feeling-picker{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.feeling-option{min-height:44px;padding:8px 5px;font-size:12px;border-radius:14px}}
