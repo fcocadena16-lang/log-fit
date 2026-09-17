@@ -1,5 +1,5 @@
 const APP_VERSION = '11.2';
-const CACHE = 'fit-log-shell-v11.2-seeded-weights';
+const CACHE = 'fit-log-shell-v11.3-workout-cleanup';
 const APP_SHELL = [
   './',
   './index.html',

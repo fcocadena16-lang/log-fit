@@ -548,9 +548,7 @@ function clearWorkoutDraft(){
 }
 function setHasData(st,splitSides=false){
   if(splitSides){
-    const leftDone=String(st?.leftReps??'')!=='' || String(st?.leftRir??'')!=='' || (String(st?.leftWeight??'')!=='' && !st?._seededLeftWeight);
-    const rightDone=String(st?.rightReps??'')!=='' || String(st?.rightRir??'')!=='' || (String(st?.rightWeight??'')!=='' && !st?._seededRightWeight);
-    return leftDone || rightDone;
+    return String(st?.leftReps??'')!=='' || String(st?.rightReps??'')!=='' || String(st?.rir??'')!=='' || (String(st?.weight??'')!=='' && !st?._seededWeight);
   }
   return String(st?.reps??'')!=='' || String(st?.rir??'')!=='' || (String(st?.weight??'')!=='' && !st?._seededWeight);
 }
@@ -583,7 +581,7 @@ async function buildExerciseDraft(exName,meta,originalName=null){
     st.n=i+1;
     return st;
   });
-  return {name:exName,originalName:originalName||exName,defaultUnit,seed:meta.seed,previous:prev?formatPrevious(prev):meta.seed,group:meta.group||prevEx?.group||EXERCISE_META[exName]?.group||'Otro',custom:!!meta.custom,splitSides:!!prevEx?.splitSides,sets,feeling:'',notes:''};
+  return {name:exName,originalName:originalName||exName,defaultUnit,seed:meta.seed,previous:prev?formatPrevious(prev):meta.seed,prevRecord:prev?{date:prev.session.date,sets:clone(prev.exercise.sets||[]),splitSides:!!prev.exercise.splitSides}:null,group:meta.group||prevEx?.group||EXERCISE_META[exName]?.group||'Otro',custom:!!meta.custom,splitSides:!!prevEx?.splitSides,sets,feeling:'',notes:''};
 }
 async function startRoutine(name){
   const existing=loadWorkoutDraft();
@@ -595,14 +593,22 @@ async function startRoutine(name){
   renderWorkout();
 }
 function sideSetText(st,side){
-  const p=side==='left'?'left':'right';
-  const label=side==='left'?'Izq':'Der';
-  const hasData=String(st?.[p+'Weight']??'')!=='' || String(st?.[p+'Reps']??'')!=='' || String(st?.[p+'Rir']??'')!=='';
-  const rir=hasData && String(st?.[p+'Rir']??'')===''?'0':st?.[p+'Rir'];
-  return `${label} ${st?.[p+'Weight']||'—'} ${st?.unit||''} × ${st?.[p+'Reps']||'—'}${hasData?` @${rir} RIR`:''}`;
+  const label=side==='left'?'I':'D';
+  const reps=st?.[side+'Reps'] || st?.reps || '—';
+  const weight=st?.weight || st?.[side+'Weight'] || '—';
+  const rirSource=String(st?.rir??'')!=='' ? st?.rir : (String(st?.[side+'Rir']??'')!=='' ? st?.[side+'Rir'] : '0');
+  const hasData=String(reps)!=='—' || String(weight)!=='—';
+  return `${weight} ${st?.unit||''} · ${label} ${reps}${hasData?` @${rirSource} RIR`:''}`;
 }
 function formatSetText(st,splitSides=false){
-  if(splitSides) return `${sideSetText(st,'left')} / ${sideSetText(st,'right')}`;
+  if(splitSides){
+    const weight=st?.weight || st?.leftWeight || st?.rightWeight || '—';
+    const left=st?.leftReps || st?.reps || '—';
+    const right=st?.rightReps || st?.reps || '—';
+    const hasData=String(left)!=='—' || String(right)!=='—' || (String(weight)!=='—');
+    const rir=hasData && String(st?.rir??'')==='' ? '0' : (st?.rir ?? '');
+    return `${weight} ${st?.unit||''} × I ${left} · D ${right}${hasData?` @${rir} RIR`:''}`;
+  }
   const hasData=String(st?.weight??'')!=='' || String(st?.reps??'')!=='' || String(st?.rir??'')!=='';
   const rir=hasData && String(st?.rir??'')===''?'0':st?.rir;
   return `${st?.weight||'—'} ${st?.unit||''} × ${st?.reps||'—'}${hasData?` @${rir} RIR`:''}`;
@@ -613,6 +619,23 @@ function formatPrevious(rec){
   if(!sets.length) return 'Sin series registradas';
   return `${fmtDate(rec.session.date)} · `+sets.map(s=>formatSetText(s,split)).join(' · ');
 }
+function previousPanelHTML(record){
+  const sets=(record?.sets||[]).filter(s=>setHasData(s,!!record?.splitSides));
+  if(!sets.length) return `<div class="previous-panel"><span>Último registro</span><strong>Sin series registradas</strong></div>`;
+  return `<div class="previous-panel"><span>Último registro</span><div class="prev-date">${fmtDate(record.date)}</div><div class="prev-set-list">${sets.map((st,idx)=>previousSetRowHTML(st,idx,!!record.splitSides)).join('')}</div></div>`;
+}
+function previousSetRowHTML(st,idx,splitSides=false){
+  if(splitSides){
+    const weight=st?.weight || st?.leftWeight || st?.rightWeight || '—';
+    const left=st?.leftReps || st?.reps || '—';
+    const right=st?.rightReps || st?.reps || '—';
+    const rir=(String(st?.rir??'')!==''?st.rir:(String(st?.leftRir??'')!==''?st.leftRir:(String(st?.rightRir??'')!==''?st.rightRir:'0')));
+    return `<div class="prev-set-row split"><b>${idx+1}</b><span class="prev-pill">${esc(weight)} ${esc(st?.unit||'')}</span><span class="prev-pill">I ${esc(left)}</span><span class="prev-pill">D ${esc(right)}</span><span class="prev-pill">${esc(rir)} RIR</span></div>`;
+  }
+  const rir=(String(st?.rir??'')!==''?st.rir:'0');
+  return `<div class="prev-set-row"><b>${idx+1}</b><span class="prev-pill">${esc(st?.weight||'—')} ${esc(st?.unit||'')}</span><span class="prev-pill">${esc(st?.reps||'—')} rep</span><span class="prev-pill">${esc(rir)} RIR</span></div>`;
+}
+function cycleUnit(current){ return current==='kg'?'lb':'kg'; }
 function timerRemainingSeconds(){ return restTimerEndAt?Math.max(0,Math.ceil((restTimerEndAt-Date.now())/1000)):180; }
 function timerLabel(){ const sec=timerRemainingSeconds(); const m=Math.floor(sec/60),s=sec%60; return `${m}:${String(s).padStart(2,'0')}`; }
 function ensureTimerInterval(){
@@ -666,12 +689,11 @@ function renderWorkout(){
       <button class="workout-tool-btn" data-open-calculator aria-label="Calculadora de unidades"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M8 7h8M8 11h2M14 11h2M8 15h2M14 15h2M8 18h2M14 18h2"/></svg></button>
       <button class="workout-tool-btn timer-tool" data-rest-timer aria-label="Temporizador de descanso"><span>⏱</span><b data-rest-timer-display>${restTimerEndAt?timerLabel():'3:00'}</b></button>
     </div>
-    <div class="topbar workout-topbar"><button class="btn ghost workout-exit" data-action="close-workout">← Salir</button><div class="workout-title"><div class="subtle">${fmtDate(s.date)}</div><h1>${esc(s.routine)}</h1></div></div>
+    <div class="topbar workout-topbar"><button class="btn ghost workout-exit" data-action="close-workout">← Salir</button><div class="workout-title"><h1>${esc(s.routine)}</h1></div></div>
     <section class="workout-overview">
       <div class="row between"><div><span class="subtle">Progreso</span><strong>${pct}%</strong></div><div class="workout-count">${s.exercises.filter(exerciseHasData).length} / ${s.exercises.length} ejercicios</div></div>
-      <div class="progressbar"><div style="width:${pct}%"></div></div><div class="autosave-indicator">✓ Guardado automáticamente en este dispositivo</div>
+      <div class="progressbar"><div style="width:${pct}%"></div></div>
     </section>
-    <div class="field date-field"><label>Fecha</label><input id="sessionDate" type="date" value="${s.date}"></div>
     <div id="exerciseList">${s.exercises.map((e,i)=>exerciseHTML(e,i)).join('')}</div>
     <button class="btn ghost block add-exercise-btn" data-add-exercise>+ Agregar ejercicio</button>
     <section class="card cardio-card"><div class="section-kicker">Final</div><h3>Cardio</h3><div class="cardio-grid"><div class="field"><label>Minutos</label><input inputmode="numeric" type="number" min="0" step="1" value="${esc(s.cardio.minutes)}" data-cardio="minutes"></div><div class="field"><label>Ritmo cardiaco (bpm)</label><input inputmode="numeric" type="number" min="0" step="1" value="${esc(s.cardio.heartRate)}" data-cardio="heartRate"></div><div class="field"><label>Inclinación (%)</label><input inputmode="decimal" type="number" min="0" step="0.1" value="${esc(s.cardio.incline)}" data-cardio="incline"></div><div class="field"><label>Velocidad (km/h)</label><input inputmode="decimal" type="number" min="0" step="0.1" value="${esc(s.cardio.speed)}" data-cardio="speed"></div></div></section>
@@ -683,27 +705,25 @@ function renderWorkout(){
 }
 function exerciseHTML(e,i){
   const alts=replacementOptionsForExercise(e); const group=e.group||EXERCISE_META[e.name]?.group||'';
-  return `<section class="card exercise" data-ex="${i}">
+  const tones=['tone-blue','tone-purple','tone-green','tone-peach'];
+  const tone=tones[i%tones.length];
+  return `<section class="card exercise ${tone}" data-ex="${i}">
     <div class="exercise-head">
       <div class="exercise-number">${i+1}</div>
       <button class="exercise-title-button ${alts.length?'can-swap':''}" data-change-exercise="${i}" ${alts.length?'':'disabled'}><span class="exercise-title-wrap"><h3>${esc(e.name)}</h3>${group?`<div class="muscle-tag">${esc(group)}</div>`:''}</span>${alts.length?'<span class="swap-chevron">›</span>':''}</button>
     </div>
-    <div class="previous-panel"><span>Último registro</span><strong>${esc(e.previous||e.seed)}</strong></div>
-    ${e.splitSides?`<div class="split-note">Resultados independientes para izquierda y derecha</div>`:`<div class="set-head workout-set-head"><span></span><span>Peso</span><span>Reps</span><span>RIR</span><span></span></div>`}
+    ${previousPanelHTML(e.prevRecord)}
+    ${e.splitSides?`<div class="set-head workout-set-head split"><span></span><span>Peso</span><span>Un</span><span>Reps I</span><span>Reps D</span><span>RIR</span><span></span></div>`:`<div class="set-head workout-set-head"><span></span><span>Peso</span><span>Un</span><span>Reps</span><span>RIR</span><span></span></div>`}
     <div class="sets">${e.sets.map((st,j)=>setRowHTML(st,i,j,e.splitSides)).join('')}</div>
-    <div class="exercise-footer"><button class="btn ghost compact" data-add-set="${i}">+ Añadir serie</button><button class="btn ghost compact ${e.splitSides?'active':''}" data-toggle-sides="${i}">${e.splitSides?'Un solo resultado':'↔ Izq / Der'}</button>${e.custom?`<button class="btn ghost compact danger-text" data-remove-exercise="${i}">Eliminar ejercicio</button>`:''}</div>
+    <div class="exercise-footer"><button class="btn ghost compact icon-only" data-add-set="${i}" aria-label="Añadir serie">+</button><button class="btn ghost compact icon-only ${e.splitSides?'active':''}" data-toggle-sides="${i}" aria-label="Alternar izquierda y derecha">↔</button>${e.custom?`<button class="btn ghost compact danger-text" data-remove-exercise="${i}">Eliminar</button>`:''}</div>
     <div class="exercise-meta-grid"><div class="field"><label>Sensaciones</label><select data-feeling="${i}"><option value="">Seleccionar</option>${['Muy ligero','Bien','Normal','Pesado','Muy pesado','Molestia'].map(v=>`<option ${e.feeling===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Notas</label><textarea data-notes="${i}" placeholder="Técnica, molestias, ajustes…">${esc(e.notes)}</textarea></div></div>
   </section>`;
 }
 function setRowHTML(st,ei,si,splitSides=false){
   if(splitSides){
-    return `<div class="split-set-card" data-set="${si}"><div class="split-set-head"><strong>Serie ${si+1}</strong><div class="row"><select data-side-unit data-ei="${ei}" data-si="${si}"><option ${st.unit==='kg'?'selected':''}>kg</option><option ${st.unit==='lb'?'selected':''}>lb</option></select><button class="icon-btn" data-remove-set="${ei}:${si}" aria-label="Eliminar serie">×</button></div></div><div class="split-columns"><span></span><span>Peso</span><span>Reps</span><span>RIR</span></div>${sideRowHTML(st,ei,si,'left','Izq')}${sideRowHTML(st,ei,si,'right','Der')}</div>`;
+    return `<div class="set-row split-mode" data-set="${si}"><span class="set-num">${si+1}</span><input inputmode="decimal" placeholder="0" value="${esc(st.weight)}" data-k="weight" data-ei="${ei}" data-si="${si}"><button class="unit-btn" data-unit-toggle data-ei="${ei}" data-si="${si}">${esc(st.unit||'kg')}</button><input inputmode="numeric" placeholder="0" value="${esc(st.leftReps||'')}" data-side-k="leftReps" data-side="left" data-ei="${ei}" data-si="${si}"><input inputmode="numeric" placeholder="0" value="${esc(st.rightReps||'')}" data-side-k="rightReps" data-side="right" data-ei="${ei}" data-si="${si}"><input inputmode="numeric" placeholder="0" value="${esc(st.rir||'')}" data-k="rir" data-ei="${ei}" data-si="${si}"><button class="icon-btn" data-remove-set="${ei}:${si}" aria-label="Eliminar serie">×</button></div>`;
   }
-  return `<div class="set-row" data-set="${si}"><span class="set-num">${si+1}</span><div class="row" style="gap:4px"><input inputmode="decimal" placeholder="0" value="${esc(st.weight)}" data-k="weight" data-ei="${ei}" data-si="${si}"><select data-k="unit" data-ei="${ei}" data-si="${si}"><option ${st.unit==='kg'?'selected':''}>kg</option><option ${st.unit==='lb'?'selected':''}>lb</option></select></div><input inputmode="numeric" placeholder="0" value="${esc(st.reps)}" data-k="reps" data-ei="${ei}" data-si="${si}"><input inputmode="numeric" placeholder="0" value="${esc(st.rir)}" data-k="rir" data-ei="${ei}" data-si="${si}"><button class="icon-btn" data-remove-set="${ei}:${si}" aria-label="Eliminar serie">×</button></div>`;
-}
-function sideRowHTML(st,ei,si,side,label){
-  const cap=side[0].toUpperCase()+side.slice(1);
-  return `<div class="side-set-row"><span class="side-label">${label}</span><input inputmode="decimal" placeholder="0" value="${esc(st[side+'Weight']||'')}" data-side-k="${side}Weight" data-side="${side}" data-ei="${ei}" data-si="${si}"><input inputmode="numeric" placeholder="0" value="${esc(st[side+'Reps']||'')}" data-side-k="${side}Reps" data-side="${side}" data-ei="${ei}" data-si="${si}"><input inputmode="numeric" placeholder="0" value="${esc(st[side+'Rir']||'')}" data-side-k="${side}Rir" data-side="${side}" data-ei="${ei}" data-si="${si}"></div>`;
+  return `<div class="set-row" data-set="${si}"><span class="set-num">${si+1}</span><input inputmode="decimal" placeholder="0" value="${esc(st.weight)}" data-k="weight" data-ei="${ei}" data-si="${si}"><button class="unit-btn" data-unit-toggle data-ei="${ei}" data-si="${si}">${esc(st.unit||'kg')}</button><input inputmode="numeric" placeholder="0" value="${esc(st.reps)}" data-k="reps" data-ei="${ei}" data-si="${si}"><input inputmode="numeric" placeholder="0" value="${esc(st.rir)}" data-k="rir" data-ei="${ei}" data-si="${si}"><button class="icon-btn" data-remove-set="${ei}:${si}" aria-label="Eliminar serie">×</button></div>`;
 }
 function completionPct(s){ const total=s.exercises.length; const done=s.exercises.filter(exerciseHasData).length; return total?Math.round(done/total*100):0; }
 function updateWorkoutProgress(){
@@ -723,13 +743,12 @@ function propagateWeight(ei,si,k,value){
 }
 function bindWorkoutEvents(){
   document.querySelector('[data-action="close-workout"]')?.addEventListener('click',()=>{ if(confirm('¿Salir y descartar este entrenamiento? Si solo cierras la app, el entrenamiento se conserva automáticamente.')){activeSessionDraft=null;clearWorkoutDraft();stopRestTimer();document.getElementById('bottomNav').classList.remove('hide');setView('train');} });
-  document.getElementById('sessionDate')?.addEventListener('change',e=>{activeSessionDraft.date=e.target.value;persistWorkoutDraft();});
   document.getElementById('overallFeeling')?.addEventListener('change',e=>{activeSessionDraft.overallFeeling=e.target.value;persistWorkoutDraft();});
   document.getElementById('sessionNotes')?.addEventListener('input',e=>{activeSessionDraft.notes=e.target.value;persistWorkoutDraft();});
   document.querySelectorAll('[data-cardio]').forEach(el=>el.addEventListener('input',e=>{activeSessionDraft.cardio[e.target.dataset.cardio]=e.target.value;persistWorkoutDraft();}));
-  document.querySelectorAll('[data-k]').forEach(el=>el.addEventListener('input',e=>{const {ei,si,k}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei],st=ex.sets[+si];st[k]=e.target.value;if(k==='weight'){st._seededWeight=false;propagateWeight(+ei,+si,k,e.target.value);}if(k==='unit' && +si===0){ex.sets.forEach((x,j)=>{if(j>0&&x._weightAuto!==false)x.unit=e.target.value;});}persistWorkoutDraft();updateWorkoutProgress();}));
-  document.querySelectorAll('[data-side-k]').forEach(el=>el.addEventListener('input',e=>{const {ei,si,sideK,side}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei],st=ex.sets[+si];st[sideK]=e.target.value;if(sideK==='leftWeight')st._seededLeftWeight=false;if(sideK==='rightWeight')st._seededRightWeight=false;if(sideK.endsWith('Weight')) propagateWeight(+ei,+si,sideK,e.target.value);persistWorkoutDraft();updateWorkoutProgress();}));
-  document.querySelectorAll('[data-side-unit]').forEach(el=>el.addEventListener('change',e=>{const {ei,si}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei];ex.sets[+si].unit=e.target.value;if(+si===0)ex.sets.forEach((x,j)=>{if(j>0)x.unit=e.target.value;});persistWorkoutDraft();}));
+  document.querySelectorAll('[data-k]').forEach(el=>el.addEventListener('input',e=>{const {ei,si,k}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei],st=ex.sets[+si];st[k]=e.target.value;if(k==='weight'){st._seededWeight=false;propagateWeight(+ei,+si,k,e.target.value);}persistWorkoutDraft();updateWorkoutProgress();}));
+  document.querySelectorAll('[data-unit-toggle]').forEach(btn=>btn.addEventListener('click',()=>{const {ei,si}=btn.dataset;const ex=activeSessionDraft.exercises[+ei];const st=ex.sets[+si];st.unit=cycleUnit(st.unit||ex.defaultUnit||'kg');btn.textContent=st.unit;if(+si===0){ex.sets.forEach((x,j)=>{if(j>0)x.unit=st.unit;const q=document.querySelector(`[data-unit-toggle][data-ei="${ei}"][data-si="${j}"]`);if(q)q.textContent=st.unit;});}persistWorkoutDraft();}));
+  document.querySelectorAll('[data-side-k]').forEach(el=>el.addEventListener('input',e=>{const {ei,si,sideK}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei],st=ex.sets[+si];st[sideK]=e.target.value;persistWorkoutDraft();updateWorkoutProgress();}));
   document.querySelectorAll('[data-feeling]').forEach(el=>el.addEventListener('change',e=>{activeSessionDraft.exercises[+e.target.dataset.feeling].feeling=e.target.value;persistWorkoutDraft();}));
   document.querySelectorAll('[data-notes]').forEach(el=>el.addEventListener('input',e=>{activeSessionDraft.exercises[+e.target.dataset.notes].notes=e.target.value;persistWorkoutDraft();}));
   document.querySelectorAll('[data-add-set]').forEach(b=>b.addEventListener('click',()=>{const i=+b.dataset.addSet;const e=activeSessionDraft.exercises[i];const previous=e.sets.at(-1)||cloneSetForDraft(null,e.defaultUnit);const st=cloneSetForDraft(null,previous.unit||e.defaultUnit);st.n=e.sets.length+1;st.weight=previous.weight||'';st.leftWeight=previous.leftWeight||'';st.rightWeight=previous.rightWeight||'';e.sets.push(st);persistWorkoutDraft();renderWorkout();}));
@@ -744,7 +763,11 @@ function bindWorkoutEvents(){
 }
 function toggleExerciseSides(index){
   const e=activeSessionDraft.exercises[index]; if(!e) return; e.splitSides=!e.splitSides;
-  if(e.splitSides) e.sets.forEach(st=>{ if(!st.leftWeight)st.leftWeight=st.weight||''; if(!st.rightWeight)st.rightWeight=st.weight||''; if(!st.leftReps)st.leftReps=st.reps||''; if(!st.rightReps)st.rightReps=st.reps||''; if(!st.leftRir)st.leftRir=st.rir||''; if(!st.rightRir)st.rightRir=st.rir||''; });
+  if(e.splitSides){
+    e.sets.forEach(st=>{ if(!st.leftReps)st.leftReps=st.reps||''; if(!st.rightReps)st.rightReps=st.reps||''; });
+  }else{
+    e.sets.forEach(st=>{ if(!st.reps)st.reps=st.leftReps||st.rightReps||''; });
+  }
   persistWorkoutDraft(); renderWorkout();
 }
 function openExerciseSwapSheet(index){
@@ -793,10 +816,8 @@ function cleanSessionForSave(session){
   for(const e of s.exercises||[]){
     for(const st of e.sets||[]){
       if(e.splitSides){
-        for(const side of ['left','right']){
-          const hasSideData=String(st?.[side+'Weight']??'')!=='' || String(st?.[side+'Reps']??'')!=='';
-          if(hasSideData && String(st?.[side+'Rir']??'')==='') st[side+'Rir']='0';
-        }
+        const hasSplitData=String(st?.weight??'')!=='' || String(st?.leftReps??'')!=='' || String(st?.rightReps??'')!=='';
+        if(hasSplitData && String(st?.rir??'')==='') st.rir='0';
       }else{
         const hasMainData=String(st?.weight??'')!=='' || String(st?.reps??'')!=='';
         if(hasMainData && String(st?.rir??'')==='') st.rir='0';

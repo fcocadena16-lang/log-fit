@@ -1,6 +1,6 @@
 {
-  "version": "11.2",
+  "version": "11.3",
   "published": "2026-09-16",
   "name": "Fit Log",
-  "notes": "Las sesiones nuevas inician en 0%, pero precargan los últimos pesos usados. Repeticiones y RIR permanecen vacíos."
+  "notes": "Pantalla de entrenamiento más limpia: sin fecha visible ni texto verde, último registro en recuadros, botones compactos, izquierda/derecha por reps I y reps D, y estilo más integrado."
 }

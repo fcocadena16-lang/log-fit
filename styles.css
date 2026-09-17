@@ -939,3 +939,49 @@ button,.btn,.icon-btn,.nav-btn,.tab,.chip,.routine-btn,.dash-card,.list-item,.ti
   .set-row input,.set-row select{height:46px!important;padding:0 7px!important}
   .date-field{max-width:190px!important}
 }
+
+
+/* v11.3 — workout input cleanup */
+.workout-title{min-width:0}.workout-title h1{margin:0;font-size:30px!important;text-align:right}
+.workout-overview{margin-bottom:16px!important}
+.exercise{position:relative;overflow:hidden;border-width:1.5px!important}
+.exercise.tone-blue{background:linear-gradient(180deg,#fbfdff 0%,#f3f7ff 100%)!important;border-color:#d9e5ff!important}
+.exercise.tone-purple{background:linear-gradient(180deg,#fffdfd 0%,#faf6ff 100%)!important;border-color:#eadcf9!important}
+.exercise.tone-green{background:linear-gradient(180deg,#fcfffd 0%,#f2fcf7 100%)!important;border-color:#d8efe2!important}
+.exercise.tone-peach{background:linear-gradient(180deg,#fffdfb 0%,#fff7f1 100%)!important;border-color:#f1dfd0!important}
+.exercise::after{content:'';position:absolute;inset:0 auto 0 0;width:6px;border-radius:28px 0 0 28px;background:rgba(115,137,255,.18)}
+.exercise.tone-purple::after{background:rgba(194,146,255,.18)}
+.exercise.tone-green::after{background:rgba(81,175,123,.16)}
+.exercise.tone-peach::after{background:rgba(226,161,105,.18)}
+.previous-panel{padding:12px 14px 13px!important}
+.prev-date{font-size:12px;color:#7b879b;font-weight:700;margin-bottom:8px}
+.prev-set-list{display:flex;flex-direction:column;gap:8px}
+.prev-set-row{display:grid;grid-template-columns:26px 1fr 1fr 1fr;gap:8px;align-items:center}
+.prev-set-row.split{grid-template-columns:26px 1.2fr 1fr 1fr 1fr}
+.prev-set-row b{font-size:13px;color:#71809a;text-align:center}
+.prev-pill{display:flex;align-items:center;justify-content:center;min-height:36px;padding:0 10px;border-radius:14px;background:#eef3f8;border:1px solid #dce5ef;font-size:13px;font-weight:760;color:#344054;white-space:nowrap}
+.workout-set-head{grid-template-columns:34px minmax(0,1.2fr) 58px minmax(0,.86fr) minmax(0,.74fr) 30px!important}
+.workout-set-head.split{grid-template-columns:34px minmax(0,1.05fr) 52px minmax(0,.72fr) minmax(0,.72fr) minmax(0,.64fr) 30px!important}
+.workout-set-head span{font-size:11px;color:#6d7b91;font-weight:800}
+.set-row{display:grid!important;grid-template-columns:34px minmax(0,1.2fr) 58px minmax(0,.86fr) minmax(0,.74fr) 30px!important;gap:8px!important;padding:10px 0!important;border-bottom:1px solid rgba(226,234,244,.92)!important;align-items:center!important}
+.set-row.split-mode{grid-template-columns:34px minmax(0,1.02fr) 52px minmax(0,.72fr) minmax(0,.72fr) minmax(0,.64fr) 30px!important}
+.set-row input{height:48px!important;min-width:0!important;border-radius:16px!important;text-align:center!important;font-weight:800!important;background:#f2f5fa!important;border:1px solid #dee6ef!important;box-shadow:none!important;padding:0 8px!important}
+.set-row input::placeholder{color:#a8b1c0;opacity:1}
+.unit-btn{height:48px;border-radius:16px;border:1px solid #d7e1ed;background:#fff;color:#445268;font-weight:800;font-size:15px;box-shadow:0 4px 10px rgba(15,23,42,.04)}
+.unit-btn:active{transform:scale(.98)}
+.set-num{display:grid;place-items:center;width:30px;height:30px;border-radius:10px;background:rgba(107,129,255,.12);color:#5a71d6;font-weight:800;font-size:14px;margin:0 auto}
+.icon-only{min-width:48px;padding:0 14px!important;font-size:24px!important;line-height:1.1!important}
+.exercise-footer .btn.icon-only{display:grid;place-items:center}
+.exercise-footer .btn{min-height:46px}
+.icon-btn{width:30px;height:40px;display:grid;place-items:center;border-radius:12px;color:#8997ab!important}
+.icon-btn:active{background:#eef3f8}
+@media(max-width:520px){
+  .workout-set-head{grid-template-columns:28px minmax(0,1.08fr) 46px minmax(0,.74fr) minmax(0,.68fr) 24px!important;gap:5px!important}
+  .workout-set-head.split{grid-template-columns:28px minmax(0,.9fr) 42px minmax(0,.62fr) minmax(0,.62fr) minmax(0,.58fr) 24px!important}
+  .set-row{grid-template-columns:28px minmax(0,1.08fr) 46px minmax(0,.74fr) minmax(0,.68fr) 24px!important;gap:5px!important}
+  .set-row.split-mode{grid-template-columns:28px minmax(0,.9fr) 42px minmax(0,.62fr) minmax(0,.62fr) minmax(0,.58fr) 24px!important}
+  .set-row input,.unit-btn{height:44px;font-size:15px}
+  .prev-set-row{grid-template-columns:22px 1fr 1fr 1fr;gap:6px}
+  .prev-set-row.split{grid-template-columns:22px 1.05fr .9fr .9fr .9fr}
+  .prev-pill{min-height:34px;font-size:12px;padding:0 8px}
+}
