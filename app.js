@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '10.4';
+const APP_VERSION = '10.5';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -878,10 +878,10 @@ async function progressHTML(){
   const savedSessions=await getAll(STORE_SESSIONS); const exerciseNames=[...new Set([...Object.values(ROUTINES).flat().map(x=>x[0]),...savedSessions.flatMap(s=>(s.exercises||[]).map(e=>e.name))])].sort((a,b)=>a.localeCompare(b,'es'));
   const pts=measures.map(m=>({date:m.date,val:num(m.weight),createdAt:m.createdAt||0})).filter(x=>x.val!==null);
   const first=pts[0], latest=pts.at(-1); const total=latest&&first?latest.val-first.val:null;
-  return `<main class="screen"><div class="topbar"><div><h1>Progreso</h1></div></div>
-    <section class="card progress-delta-card"><strong class="${total===null?'':total<=0?'good-delta':'neutral-delta'}">${total===null?'—':`${total>0?'+':''}${round(total,1)} kg`}</strong></section>
-    <section class="card chart-card progress-chart-card"><select id="metricSelect" class="clean-select">${MEASURE_FIELDS.map(([k,l])=>`<option value="${k}" ${k===selected?'selected':''}>${l}</option>`).join('')}</select><div id="chartArea">${chartHTML(measures,selected)}</div></section>
-    <section class="card clean-exercise-card"><select id="exerciseSelect" class="clean-select"><option value="">Seleccionar ejercicio</option>${exerciseNames.map(n=>`<option>${esc(n)}</option>`).join('')}</select><div id="exerciseProgress" class="exercise-progress-placeholder"></div></section>
+  return `<main class="screen progress-screen"><div class="topbar"><div><h1>Progreso</h1></div></div>
+    <section class="card progress-delta-card premium-surface"><strong class="${total===null?'':total<=0?'good-delta':'neutral-delta'}">${total===null?'—':`${total>0?'+':''}${round(total,1)} kg`}</strong></section>
+    <section class="card chart-card progress-chart-card premium-surface"><select id="metricSelect" class="clean-select progress-select">${MEASURE_FIELDS.map(([k,l])=>`<option value="${k}" ${k===selected?'selected':''}>${l}</option>`).join('')}</select><div id="chartArea">${chartHTML(measures,selected)}</div></section>
+    <section class="card clean-exercise-card premium-surface"><select id="exerciseSelect" class="clean-select progress-select"><option value="">Seleccionar ejercicio</option>${exerciseNames.map(n=>`<option>${esc(n)}</option>`).join('')}</select><div id="exerciseProgress" class="exercise-progress-placeholder"></div></section>
   </main>`;
 }
 function chartHTML(data,key){

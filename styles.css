@@ -538,3 +538,38 @@ body{font-size:16px}
   .chart-value-lg{font-size:19px}
   .chart-date{font-size:13px}
 }
+
+
+/* v10.5 progreso premium */
+.progress-screen{padding-top:6px}
+.premium-surface{position:relative;overflow:hidden;background:linear-gradient(180deg,#ffffff 0%,#fbfcff 100%);border:1px solid rgba(207,216,230,.95);box-shadow:0 16px 36px rgba(21,30,55,.06),0 2px 0 rgba(255,255,255,.72) inset}
+.premium-surface::before{content:"";position:absolute;right:-36px;top:-36px;width:158px;height:158px;border-radius:50%;background:radial-gradient(circle at 30% 30%,rgba(92,124,250,.14),rgba(92,124,250,0) 70%);pointer-events:none}
+.premium-surface::after{content:"";position:absolute;left:-28px;bottom:-34px;width:122px;height:122px;border-radius:50%;background:radial-gradient(circle at 50% 50%,rgba(111,207,151,.12),rgba(111,207,151,0) 72%);pointer-events:none}
+.progress-delta-card{min-height:154px;margin-bottom:16px;border-radius:30px}
+.progress-delta-card strong{font-size:76px;position:relative;z-index:1;text-shadow:0 1px 0 rgba(255,255,255,.65)}
+.progress-chart-card{padding:14px 14px 16px;border-radius:30px;margin-bottom:16px}
+.clean-exercise-card{padding:14px;border-radius:30px}
+.progress-select{position:relative;z-index:1;background:rgba(255,255,255,.84);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 8px 18px rgba(15,23,42,.04)}
+#chartArea{position:relative;z-index:1}
+#chartArea .premium-chart{border-radius:24px;padding:6px 0 0;background:linear-gradient(180deg,#fcfdff 0%,#f7f9ff 100%)}
+.chart-wrap svg{display:block;width:100%;height:auto}
+.chart-line{stroke:#5c7cfa;filter:drop-shadow(0 4px 10px rgba(92,124,250,.18))}
+.chart-dot{stroke:#fff;stroke-width:3}
+.chart-grid{stroke:#e7ebf3}
+.chart-value-lg{font-size:28px;font-weight:900;fill:#23304d}
+.chart-date{font-size:16px;font-weight:800;fill:#73809a}
+.clean-exercise-card .list{border-radius:20px;overflow:hidden;background:rgba(255,255,255,.68);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.clean-exercise-card .list-item{background:transparent}
+.clean-exercise-card .list-item strong{font-size:17px}
+@media(max-width:620px){
+  .progress-delta-card{min-height:138px}
+  .progress-delta-card strong{font-size:62px}
+  .progress-chart-card,.clean-exercise-card{border-radius:26px}
+  .chart-value-lg{font-size:24px}
+  .chart-date{font-size:14px}
+}
+@media(max-width:390px){
+  .progress-delta-card strong{font-size:54px}
+  .chart-value-lg{font-size:20px}
+  .chart-date{font-size:13px}
+}
