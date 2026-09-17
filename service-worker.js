@@ -1,12 +1,12 @@
-const APP_VERSION = '11.12';
-const CACHE = 'fit-log-shell-v11.12-chart-dates';
+const APP_VERSION = '11.13';
+const CACHE = 'fit-log-shell-v11.13-chart-dates';
 const CACHE_PREFIX = 'fit-log-shell-';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=11.12',
-  './app.js?v=11.12',
+  './styles.css?v=11.13',
+  './app.js?v=11.13',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',

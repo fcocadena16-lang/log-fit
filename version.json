@@ -1,5 +1,5 @@
 {
-  "version": "11.12",
+  "version": "11.13",
   "published": "2026-09-17",
   "name": "Fit Log",
   "notes": "Refuerzo del modo offline: arranque desde caché, recursos con ignoreSearch, actualización en segundo plano y limpieza limitada a cachés de Fit Log."

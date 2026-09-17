@@ -1134,3 +1134,7 @@ button,.btn,.icon-btn,.nav-btn,.tab,.chip,.routine-btn,.dash-card,.list-item,.ti
 
 /* v11.12 chart date room */
 #chartArea .premium-chart{padding-bottom:10px}
+
+/* v11.13: reserve visible room for full rotated chart dates */
+#chartArea .chart-svg{overflow:visible}
+#chartArea .premium-chart{padding-bottom:14px}
