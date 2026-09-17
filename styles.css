@@ -1023,3 +1023,71 @@ button,.btn,.icon-btn,.nav-btn,.tab,.chip,.routine-btn,.dash-card,.list-item,.ti
 .feeling-option.active.tone-red{background:#fce1e4;border-color:#e8b9c0;color:#7e414a;box-shadow:0 0 0 3px rgba(138,89,96,.08)}
 .feeling-option.active{transform:translateY(-1px)}
 @media(max-width:520px){.feeling-picker{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.feeling-option{min-height:44px;padding:8px 5px;font-size:12px;border-radius:14px}}
+
+
+/* v11.7 — sensaciones en una sola barra + flecha atrás */
+.feeling-picker{
+  display:grid!important;
+  grid-template-columns:repeat(6,minmax(0,1fr))!important;
+  gap:0!important;
+  width:100%!important;
+  overflow:hidden!important;
+  border:1px solid #e4e7e2!important;
+  border-radius:18px!important;
+  background:linear-gradient(90deg,
+    #fff7d8 0%,
+    #fff9e6 23%,
+    #eef9e8 42%,
+    #e8f7ed 62%,
+    #fff1e7 78%,
+    #fdebec 100%)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.72),0 6px 14px rgba(15,23,42,.035)!important;
+}
+.feeling-option,
+.feeling-option.tone-green,
+.feeling-option.tone-yellow,
+.feeling-option.tone-red{
+  min-width:0!important;
+  min-height:44px!important;
+  padding:0 3px!important;
+  margin:0!important;
+  border:0!important;
+  border-right:1px solid rgba(126,136,126,.13)!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#5f665e!important;
+  font-size:10px!important;
+  font-weight:800!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+  transform:none!important;
+}
+.feeling-option:last-child{border-right:0!important}
+.feeling-option span{display:block!important;width:100%!important;white-space:nowrap!important;overflow:visible!important}
+.feeling-option.active,
+.feeling-option.active.tone-green,
+.feeling-option.active.tone-yellow,
+.feeling-option.active.tone-red{
+  position:relative!important;
+  z-index:1!important;
+  background:rgba(255,255,255,.76)!important;
+  color:#283244!important;
+  box-shadow:inset 0 0 0 2px rgba(79,93,120,.18),0 3px 9px rgba(15,23,42,.07)!important;
+}
+.feeling-option:active{background:rgba(255,255,255,.48)!important}
+.workout-exit{
+  min-width:48px!important;
+  width:48px!important;
+  height:48px!important;
+  padding:0!important;
+  font-size:25px!important;
+  line-height:1!important;
+  border-radius:16px!important;
+}
+@media(max-width:390px){
+  .feeling-option,
+  .feeling-option.tone-green,
+  .feeling-option.tone-yellow,
+  .feeling-option.tone-red{font-size:9px!important;padding:0 1px!important}
+}

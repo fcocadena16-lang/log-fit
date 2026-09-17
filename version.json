@@ -1,6 +1,6 @@
 {
-  "version": "11.6",
+  "version": "11.7",
   "published": "2026-09-16",
   "name": "Fit Log",
-  "notes": "Sensaciones con botones de texto y colores pastel verde, amarillo y rojo."
+  "notes": "Sensaciones en una sola barra continua de amarillo a verde y rojo; botón de salida reducido a una sola flecha."
 }

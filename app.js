@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.6';
+const APP_VERSION = '11.7';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -709,7 +709,7 @@ function renderWorkout(){
       <button class="workout-tool-btn" data-open-calculator aria-label="Calculadora de unidades"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M8 7h8M8 11h2M14 11h2M8 15h2M14 15h2M8 18h2M14 18h2"/></svg></button>
       <button class="workout-tool-btn timer-tool" data-rest-timer aria-label="Temporizador de descanso"><span>⏱</span><b data-rest-timer-display>${restTimerEndAt?timerLabel():'3:00'}</b></button>
     </div>
-    <div class="topbar workout-topbar"><button class="btn ghost workout-exit" data-action="close-workout">← Salir</button><div class="workout-title"><h1>${esc(s.routine)}</h1></div></div>
+    <div class="topbar workout-topbar"><button class="btn ghost workout-exit" data-action="close-workout" aria-label="Salir">←</button><div class="workout-title"><h1>${esc(s.routine)}</h1></div></div>
     <section class="workout-overview">
       <div class="row between"><div><span class="subtle">Progreso</span><strong>${pct}%</strong></div><div class="workout-count">${s.exercises.filter(exerciseHasData).length} / ${s.exercises.length} ejercicios</div></div>
       <div class="progressbar"><div style="width:${pct}%"></div></div>

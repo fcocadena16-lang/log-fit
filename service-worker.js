@@ -1,10 +1,10 @@
-const APP_VERSION = '11.6';
-const CACHE = 'fit-log-shell-v11.6-feeling-text-colors';
+const APP_VERSION = '11.7';
+const CACHE = 'fit-log-shell-v11.7-feeling-bar';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=11.6',
-  './app.js?v=11.6',
+  './styles.css?v=11.7',
+  './app.js?v=11.7',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',
