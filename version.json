@@ -1,6 +1,6 @@
 {
-  "version": "11.4",
+  "version": "11.5",
   "published": "2026-09-16",
   "name": "Fit Log",
-  "notes": "Reps y RIR del entrenamiento anterior aparecen en gris como referencia dentro de cada campo, sin contar para progreso. Se elimina el bloque Último registro."
+  "notes": "Sensaciones como selector visual tipo encuesta: todas las caras visibles a la vez para cada ejercicio y para la sesión general."
 }

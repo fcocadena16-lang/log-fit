@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.4';
+const APP_VERSION = '11.5';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -12,6 +12,26 @@ const STORE_SETTINGS = 'settings';
 const STORE_FOODS = 'foods';
 const STORE_FOOD_DAYS = 'foodDays';
 const STORE_FOOD_TEMPLATES = 'foodTemplates';
+
+const EXERCISE_FEELINGS = [
+  {value:'Muy ligero',label:'Ligero',icon:'😌'},
+  {value:'Bien',label:'Bien',icon:'🙂'},
+  {value:'Normal',label:'Normal',icon:'😐'},
+  {value:'Pesado',label:'Pesado',icon:'😣'},
+  {value:'Muy pesado',label:'Muy pesado',icon:'😫'},
+  {value:'Molestia',label:'Molestia',icon:'🤕'}
+];
+const SESSION_FEELINGS = [
+  {value:'Excelente',label:'Excelente',icon:'😄'},
+  {value:'Bien',label:'Bien',icon:'🙂'},
+  {value:'Normal',label:'Normal',icon:'😐'},
+  {value:'Pesada',label:'Pesada',icon:'😣'},
+  {value:'Muy pesada',label:'Muy pesada',icon:'😫'},
+  {value:'Molestia',label:'Molestia',icon:'🤕'}
+];
+function feelingPickerHTML(options,selected,attr,index=null){
+  return `<div class="feeling-picker">${options.map(f=>`<button type="button" class="feeling-option ${selected===f.value?'active':''}" ${attr}="${index===null?esc(f.value):index}" ${index===null?'':`data-value="${esc(f.value)}"`} aria-pressed="${selected===f.value?'true':'false'}"><span class="feeling-emoji">${f.icon}</span><small>${esc(f.label)}</small></button>`).join('')}</div>`;
+}
 
 const ROUTINES = {
   'Upper 1': [
@@ -697,7 +717,7 @@ function renderWorkout(){
     <div id="exerciseList">${s.exercises.map((e,i)=>exerciseHTML(e,i)).join('')}</div>
     <button class="btn ghost block add-exercise-btn" data-add-exercise>+ Agregar ejercicio</button>
     <section class="card cardio-card"><div class="section-kicker">Final</div><h3>Cardio</h3><div class="cardio-grid"><div class="field"><label>Minutos</label><input inputmode="numeric" type="number" min="0" step="1" value="${esc(s.cardio.minutes)}" data-cardio="minutes"></div><div class="field"><label>Ritmo cardiaco (bpm)</label><input inputmode="numeric" type="number" min="0" step="1" value="${esc(s.cardio.heartRate)}" data-cardio="heartRate"></div><div class="field"><label>Inclinación (%)</label><input inputmode="decimal" type="number" min="0" step="0.1" value="${esc(s.cardio.incline)}" data-cardio="incline"></div><div class="field"><label>Velocidad (km/h)</label><input inputmode="decimal" type="number" min="0" step="0.1" value="${esc(s.cardio.speed)}" data-cardio="speed"></div></div></section>
-    <section class="card session-card"><div class="section-kicker">Cierre</div><h3>Sesión</h3><div class="field"><label>Sensación general</label><select id="overallFeeling"><option value="">Seleccionar</option>${['Excelente','Bien','Normal','Pesada','Muy pesada','Molestia'].map(v=>`<option ${s.overallFeeling===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Notas generales</label><textarea id="sessionNotes" placeholder="Resumen del entrenamiento…">${esc(s.notes)}</textarea></div></section>
+    <section class="card session-card"><div class="section-kicker">Cierre</div><h3>Sesión</h3><div class="field feeling-field"><label>Sensación general</label>${feelingPickerHTML(SESSION_FEELINGS,s.overallFeeling,'data-overall-feeling-choice')}</div><div class="field"><label>Notas generales</label><textarea id="sessionNotes" placeholder="Resumen del entrenamiento…">${esc(s.notes)}</textarea></div></section>
     <div class="save-actions"><button class="btn primary block save-workout-btn" data-action="save-session">Guardar entrenamiento</button></div>
     <div id="workoutSheetHost"></div>
   </main>`;
@@ -715,7 +735,7 @@ function exerciseHTML(e,i){
     ${e.splitSides?`<div class="set-head workout-set-head split"><span></span><span>Peso</span><span>Un</span><span>Reps I</span><span>Reps D</span><span>RIR</span><span></span></div>`:`<div class="set-head workout-set-head"><span></span><span>Peso</span><span>Un</span><span>Reps</span><span>RIR</span><span></span></div>`}
     <div class="sets">${e.sets.map((st,j)=>setRowHTML(st,i,j,e.splitSides,e)).join('')}</div>
     <div class="exercise-footer"><button class="btn ghost compact icon-only" data-add-set="${i}" aria-label="Añadir serie">+</button><button class="btn ghost compact icon-only ${e.splitSides?'active':''}" data-toggle-sides="${i}" aria-label="Alternar izquierda y derecha">↔</button>${e.custom?`<button class="btn ghost compact danger-text" data-remove-exercise="${i}">Eliminar</button>`:''}</div>
-    <div class="exercise-meta-grid"><div class="field"><label>Sensaciones</label><select data-feeling="${i}"><option value="">Seleccionar</option>${['Muy ligero','Bien','Normal','Pesado','Muy pesado','Molestia'].map(v=>`<option ${e.feeling===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Notas</label><textarea data-notes="${i}" placeholder="Técnica, molestias, ajustes…">${esc(e.notes)}</textarea></div></div>
+    <div class="exercise-meta-grid"><div class="field feeling-field"><label>Sensaciones</label>${feelingPickerHTML(EXERCISE_FEELINGS,e.feeling,'data-feeling-choice',i)}</div><div class="field"><label>Notas</label><textarea data-notes="${i}" placeholder="Técnica, molestias, ajustes…">${esc(e.notes)}</textarea></div></div>
   </section>`;
 }
 function previousSetReference(e,si){
@@ -751,13 +771,13 @@ function propagateWeight(ei,si,k,value){
 }
 function bindWorkoutEvents(){
   document.querySelector('[data-action="close-workout"]')?.addEventListener('click',()=>{ if(confirm('¿Salir y descartar este entrenamiento? Si solo cierras la app, el entrenamiento se conserva automáticamente.')){activeSessionDraft=null;clearWorkoutDraft();stopRestTimer();document.getElementById('bottomNav').classList.remove('hide');setView('train');} });
-  document.getElementById('overallFeeling')?.addEventListener('change',e=>{activeSessionDraft.overallFeeling=e.target.value;persistWorkoutDraft();});
+  document.querySelectorAll('[data-overall-feeling-choice]').forEach(btn=>btn.addEventListener('click',()=>{const value=btn.dataset.overallFeelingChoice;activeSessionDraft.overallFeeling=activeSessionDraft.overallFeeling===value?'':value;persistWorkoutDraft();document.querySelectorAll('[data-overall-feeling-choice]').forEach(b=>{const on=b.dataset.overallFeelingChoice===activeSessionDraft.overallFeeling;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));});}));
   document.getElementById('sessionNotes')?.addEventListener('input',e=>{activeSessionDraft.notes=e.target.value;persistWorkoutDraft();});
   document.querySelectorAll('[data-cardio]').forEach(el=>el.addEventListener('input',e=>{activeSessionDraft.cardio[e.target.dataset.cardio]=e.target.value;persistWorkoutDraft();}));
   document.querySelectorAll('[data-k]').forEach(el=>el.addEventListener('input',e=>{const {ei,si,k}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei],st=ex.sets[+si];st[k]=e.target.value;if(k==='weight'){st._seededWeight=false;propagateWeight(+ei,+si,k,e.target.value);}persistWorkoutDraft();updateWorkoutProgress();}));
   document.querySelectorAll('[data-unit-toggle]').forEach(btn=>btn.addEventListener('click',()=>{const {ei,si}=btn.dataset;const ex=activeSessionDraft.exercises[+ei];const st=ex.sets[+si];st.unit=cycleUnit(st.unit||ex.defaultUnit||'kg');btn.textContent=st.unit;if(+si===0){ex.sets.forEach((x,j)=>{if(j>0)x.unit=st.unit;const q=document.querySelector(`[data-unit-toggle][data-ei="${ei}"][data-si="${j}"]`);if(q)q.textContent=st.unit;});}persistWorkoutDraft();}));
   document.querySelectorAll('[data-side-k]').forEach(el=>el.addEventListener('input',e=>{const {ei,si,sideK}=e.target.dataset;const ex=activeSessionDraft.exercises[+ei],st=ex.sets[+si];st[sideK]=e.target.value;persistWorkoutDraft();updateWorkoutProgress();}));
-  document.querySelectorAll('[data-feeling]').forEach(el=>el.addEventListener('change',e=>{activeSessionDraft.exercises[+e.target.dataset.feeling].feeling=e.target.value;persistWorkoutDraft();}));
+  document.querySelectorAll('[data-feeling-choice]').forEach(btn=>btn.addEventListener('click',()=>{const i=+btn.dataset.feelingChoice;const value=btn.dataset.value;const ex=activeSessionDraft.exercises[i];ex.feeling=ex.feeling===value?'':value;persistWorkoutDraft();document.querySelectorAll(`[data-feeling-choice="${i}"]`).forEach(b=>{const on=b.dataset.value===ex.feeling;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));});}));
   document.querySelectorAll('[data-notes]').forEach(el=>el.addEventListener('input',e=>{activeSessionDraft.exercises[+e.target.dataset.notes].notes=e.target.value;persistWorkoutDraft();}));
   document.querySelectorAll('[data-add-set]').forEach(b=>b.addEventListener('click',()=>{const i=+b.dataset.addSet;const e=activeSessionDraft.exercises[i];const previous=e.sets.at(-1)||cloneSetForDraft(null,e.defaultUnit);const st=cloneSetForDraft(null,previous.unit||e.defaultUnit);st.n=e.sets.length+1;st.weight=previous.weight||'';st.leftWeight=previous.leftWeight||'';st.rightWeight=previous.rightWeight||'';e.sets.push(st);persistWorkoutDraft();renderWorkout();}));
   document.querySelectorAll('[data-remove-set]').forEach(b=>b.addEventListener('click',()=>{const [ei,si]=b.dataset.removeSet.split(':').map(Number);const e=activeSessionDraft.exercises[ei];if(e.sets.length===1)return;e.sets.splice(si,1);e.sets.forEach((x,n)=>x.n=n+1);persistWorkoutDraft();renderWorkout();}));
