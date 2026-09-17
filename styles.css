@@ -573,3 +573,40 @@ body{font-size:16px}
   .chart-value-lg{font-size:20px}
   .chart-date{font-size:13px}
 }
+
+
+/* v10.6 progreso + medidas */
+.editable-weight-card{position:relative;overflow:hidden;padding:22px 22px 18px;border-radius:30px}
+.editable-weight-card::before{content:"";position:absolute;inset:auto -38px -48px auto;width:148px;height:148px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.45),rgba(255,255,255,0) 72%);pointer-events:none}
+.weight-entry-heading{display:flex;flex-direction:column;gap:4px}
+.weight-entry-heading small{font-size:14px;color:#587263;font-weight:700}
+.auto-save-status{display:inline-flex;align-items:center;justify-content:center;min-width:56px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.72);border:1px solid rgba(199,218,206,.92);color:#496a59;font-size:13px;font-weight:800}
+.weight-input-shell{display:flex;align-items:center;justify-content:center;gap:12px;padding:18px 18px;border-radius:24px;background:rgba(255,255,255,.74);border:1px solid rgba(203,222,212,.96);box-shadow:0 12px 24px rgba(34,57,45,.06);cursor:text;position:relative;z-index:1}
+.weight-input-shell:focus-within{border-color:#8ab79f;box-shadow:0 0 0 4px rgba(111,207,151,.14),0 12px 24px rgba(34,57,45,.08)}
+.weight-input-shell input{width:min(260px,68%);border:0!important;background:transparent!important;text-align:center;font-size:68px;font-weight:850;letter-spacing:-.06em;color:var(--text)!important;outline:none;padding:0!important;line-height:1}
+.weight-input-shell span{font-size:28px;font-weight:850;color:#5c6a7e;align-self:flex-end;padding-bottom:8px}
+.weight-entry-note{margin:12px 4px 0;text-align:center;font-size:13px;font-weight:700;color:#597264;position:relative;z-index:1}
+.body-measure-launch.measure-tint-card{justify-content:space-between!important}
+.measure-card-arrow{font-size:42px;line-height:1;color:#5a6a7e;font-weight:300;transform:translateY(-1px)}
+.progress-delta-card strong{font-size:84px}
+.progress-chart-card{padding:12px 12px 14px}
+.progress-chart-card .clean-select{margin-bottom:12px}
+#chartArea .premium-chart{padding:2px 0 0;background:linear-gradient(180deg,#ffffff 0%,#f7f9ff 100%)}
+.chart-wrap{overflow:visible}
+.chart-value-lg{font-size:32px!important;font-weight:950!important;fill:#1f2b44!important}
+.chart-date{font-size:16px!important;font-weight:850!important;fill:#75829b!important}
+.chart-line{stroke-width:4.5}
+.chart-dot{stroke:#fff;stroke-width:3.2;filter:drop-shadow(0 4px 8px rgba(92,124,250,.18))}
+@media(max-width:620px){
+  .weight-input-shell input{font-size:60px}
+  .weight-input-shell span{font-size:25px}
+  .progress-delta-card strong{font-size:68px}
+  .chart-value-lg{font-size:26px!important}
+  .chart-date{font-size:14px!important}
+}
+@media(max-width:390px){
+  .weight-input-shell input{font-size:54px}
+  .progress-delta-card strong{font-size:60px}
+  .chart-value-lg{font-size:22px!important}
+  .chart-date{font-size:13px!important}
+}

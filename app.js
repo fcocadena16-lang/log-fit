@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '10.5';
+const APP_VERSION = '10.6';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -797,15 +797,15 @@ async function saveSession(){
 async function measureHTML(){
   const measurements=(await getAll(STORE_MEASUREMENTS)).sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||0)-(b.createdAt||0));
   const weightRows=measurements.filter(x=>num(x.weight)!==null); const currentWeight=weightRows.at(-1)||null;
-  const bodyRows=measurements.filter(hasBodyMeasurementData); const lastBody=bodyRows.at(-1)||null;
   const effective=await effectiveMeasurementAt(today());
   return `<main class="screen section-screen measure-screen clean-measure-screen">
-    <section class="weight-entry-card measure-tint-card">
-      <div class="weight-entry-top"><span class="dashboard-kicker">Peso</span><span id="weightSaveStatus" class="auto-save-status">Automático</span></div>
-      <div class="weight-entry-control"><input id="dailyWeightInput" inputmode="decimal" type="number" step="0.1" min="20" max="400" value="${currentWeight?.weight??effective?.weight??''}" placeholder="—" aria-label="Peso en kilogramos"><span>kg</span></div>
+    <section class="weight-entry-card measure-tint-card editable-weight-card">
+      <div class="weight-entry-top"><div class="weight-entry-heading"><span class="dashboard-kicker">Peso</span><small>Escribe tu peso de hoy</small></div><span id="weightSaveStatus" class="auto-save-status">Auto</span></div>
+      <label class="weight-input-shell" for="dailyWeightInput"><input id="dailyWeightInput" inputmode="decimal" type="number" step="0.1" min="20" max="400" value="${currentWeight?.weight??effective?.weight??''}" placeholder="0.0" aria-label="Peso en kilogramos"><span>kg</span></label>
+      <p class="weight-entry-note">Se guarda automáticamente al escribir.</p>
     </section>
     <section class="body-measure-launch card clickable-card measure-tint-card" data-open-body-measures>
-      <div><h2>Medidas corporales</h2></div>
+      <div><h2>Medidas corporales</h2></div><span class="measure-card-arrow">›</span>
     </section>
     <div id="measureSheetHost"></div>
   </main>`;
@@ -886,11 +886,11 @@ async function progressHTML(){
 }
 function chartHTML(data,key){
   const pts=data.map(d=>({date:d.date,val:num(d[key])})).filter(x=>x.val!==null); if(pts.length<2) return '<div class="empty">Registra al menos dos mediciones para generar una gráfica.</div>';
-  const vals=pts.map(p=>p.val), min=Math.min(...vals), max=Math.max(...vals), rawSpan=(max-min)||1, margin=rawSpan*.20, lo=min-margin, hi=max+margin, span=hi-lo; const w=660,h=320,padX=44,padTop=32,padBottom=74;
+  const vals=pts.map(p=>p.val), min=Math.min(...vals), max=Math.max(...vals), rawSpan=(max-min)||1, margin=rawSpan*.20, lo=min-margin, hi=max+margin, span=hi-lo; const w=680,h=340,padX=44,padTop=30,padBottom=82;
   const xy=pts.map((p,i)=>({x:padX+(i/(pts.length-1))*(w-padX*2),y:padTop+((hi-p.val)/span)*(h-padTop-padBottom),...p}));
   const path=xy.map((p,i)=>`${i?'L':'M'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' '); const area=`${path} L ${xy.at(-1).x.toFixed(1)} ${h-padBottom} L ${xy[0].x.toFixed(1)} ${h-padBottom} Z`;
   const grid=[0,.5,1].map(t=>{const y=padTop+t*(h-padTop-padBottom);return `<line x1="${padX}" y1="${y}" x2="${w-padX}" y2="${y}" class="chart-grid"/>`}).join('');
-  return `<div class="chart-wrap premium-chart"><svg viewBox="0 0 ${w} ${h}" class="chart-svg" role="img"><defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5c7cfa" stop-opacity=".22"/><stop offset="100%" stop-color="#5c7cfa" stop-opacity="0"/></linearGradient></defs>${grid}<path d="${area}" class="chart-area"/><path d="${path}" class="chart-line"/>${xy.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="${i===xy.length-1?6:4.5}" class="chart-dot"/><text x="${p.x}" y="${Math.max(20,p.y-14)}" text-anchor="middle" class="chart-label chart-value chart-value-lg">${round(p.val,1)}</text><text x="${p.x}" y="${h-12}" text-anchor="end" transform="rotate(-32 ${p.x} ${h-12})" class="chart-label chart-date">${fmtDate(p.date)}</text>`).join('')}</svg></div>`;
+  return `<div class="chart-wrap premium-chart"><svg viewBox="0 0 ${w} ${h}" class="chart-svg" role="img"><defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5c7cfa" stop-opacity=".22"/><stop offset="100%" stop-color="#5c7cfa" stop-opacity="0"/></linearGradient></defs>${grid}<path d="${area}" class="chart-area"/><path d="${path}" class="chart-line"/>${xy.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="${i===0||i===xy.length-1?6.8:5}" class="chart-dot"/><text x="${p.x}" y="${Math.max(20,p.y-14)}" text-anchor="middle" class="chart-label chart-value chart-value-lg">${round(p.val,1)}</text><text x="${p.x}" y="${h-12}" text-anchor="end" transform="rotate(-32 ${p.x} ${h-12})" class="chart-label chart-date">${fmtDate(p.date)}</text>`).join('')}</svg></div>`;
 }
 async function renderExerciseProgress(name){
   const box=document.getElementById('exerciseProgress'); if(!name){box.innerHTML='';return;}
