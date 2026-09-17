@@ -1,10 +1,10 @@
-const APP_VERSION = '11.2';
-const CACHE = 'fit-log-shell-v11.3-workout-cleanup';
+const APP_VERSION = '11.4';
+const CACHE = 'fit-log-shell-v11.4-workout-placeholders';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=11.2',
-  './app.js?v=11.2',
+  './styles.css?v=11.4',
+  './app.js?v=11.4',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',

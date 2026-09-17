@@ -985,3 +985,7 @@ button,.btn,.icon-btn,.nav-btn,.tab,.chip,.routine-btn,.dash-card,.list-item,.ti
   .prev-set-row.split{grid-template-columns:22px 1.05fr .9fr .9fr .9fr}
   .prev-pill{min-height:34px;font-size:12px;padding:0 8px}
 }
+
+
+/* v11.4 — referencias del entrenamiento anterior como placeholders */
+.set-row input::placeholder{color:#a7b0bf!important;opacity:1!important;font-weight:760!important}

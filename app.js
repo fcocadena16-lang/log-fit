@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.2';
+const APP_VERSION = '11.4';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -712,18 +712,26 @@ function exerciseHTML(e,i){
       <div class="exercise-number">${i+1}</div>
       <button class="exercise-title-button ${alts.length?'can-swap':''}" data-change-exercise="${i}" ${alts.length?'':'disabled'}><span class="exercise-title-wrap"><h3>${esc(e.name)}</h3>${group?`<div class="muscle-tag">${esc(group)}</div>`:''}</span>${alts.length?'<span class="swap-chevron">›</span>':''}</button>
     </div>
-    ${previousPanelHTML(e.prevRecord)}
     ${e.splitSides?`<div class="set-head workout-set-head split"><span></span><span>Peso</span><span>Un</span><span>Reps I</span><span>Reps D</span><span>RIR</span><span></span></div>`:`<div class="set-head workout-set-head"><span></span><span>Peso</span><span>Un</span><span>Reps</span><span>RIR</span><span></span></div>`}
-    <div class="sets">${e.sets.map((st,j)=>setRowHTML(st,i,j,e.splitSides)).join('')}</div>
+    <div class="sets">${e.sets.map((st,j)=>setRowHTML(st,i,j,e.splitSides,e)).join('')}</div>
     <div class="exercise-footer"><button class="btn ghost compact icon-only" data-add-set="${i}" aria-label="Añadir serie">+</button><button class="btn ghost compact icon-only ${e.splitSides?'active':''}" data-toggle-sides="${i}" aria-label="Alternar izquierda y derecha">↔</button>${e.custom?`<button class="btn ghost compact danger-text" data-remove-exercise="${i}">Eliminar</button>`:''}</div>
     <div class="exercise-meta-grid"><div class="field"><label>Sensaciones</label><select data-feeling="${i}"><option value="">Seleccionar</option>${['Muy ligero','Bien','Normal','Pesado','Muy pesado','Molestia'].map(v=>`<option ${e.feeling===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Notas</label><textarea data-notes="${i}" placeholder="Técnica, molestias, ajustes…">${esc(e.notes)}</textarea></div></div>
   </section>`;
 }
-function setRowHTML(st,ei,si,splitSides=false){
+function previousSetReference(e,si){
+  const sets=e?.prevRecord?.sets||[];
+  return sets[si] || sets.at(-1) || null;
+}
+function setRowHTML(st,ei,si,splitSides=false,e=null){
+  const prev=previousSetReference(e,si);
+  const prevRir=String(prev?.rir??'')!=='' ? prev.rir : (String(prev?.leftRir??'')!=='' ? prev.leftRir : (String(prev?.rightRir??'')!=='' ? prev.rightRir : '0'));
   if(splitSides){
-    return `<div class="set-row split-mode" data-set="${si}"><span class="set-num">${si+1}</span><input inputmode="decimal" placeholder="0" value="${esc(st.weight)}" data-k="weight" data-ei="${ei}" data-si="${si}"><button class="unit-btn" data-unit-toggle data-ei="${ei}" data-si="${si}">${esc(st.unit||'kg')}</button><input inputmode="numeric" placeholder="0" value="${esc(st.leftReps||'')}" data-side-k="leftReps" data-side="left" data-ei="${ei}" data-si="${si}"><input inputmode="numeric" placeholder="0" value="${esc(st.rightReps||'')}" data-side-k="rightReps" data-side="right" data-ei="${ei}" data-si="${si}"><input inputmode="numeric" placeholder="0" value="${esc(st.rir||'')}" data-k="rir" data-ei="${ei}" data-si="${si}"><button class="icon-btn" data-remove-set="${ei}:${si}" aria-label="Eliminar serie">×</button></div>`;
+    const prevLeft=String(prev?.leftReps??'')!=='' ? prev.leftReps : (String(prev?.reps??'')!=='' ? prev.reps : '0');
+    const prevRight=String(prev?.rightReps??'')!=='' ? prev.rightReps : (String(prev?.reps??'')!=='' ? prev.reps : '0');
+    return `<div class="set-row split-mode" data-set="${si}"><span class="set-num">${si+1}</span><input inputmode="decimal" placeholder="0" value="${esc(st.weight)}" data-k="weight" data-ei="${ei}" data-si="${si}"><button class="unit-btn" data-unit-toggle data-ei="${ei}" data-si="${si}">${esc(st.unit||'kg')}</button><input inputmode="numeric" placeholder="${esc(prevLeft)}" value="${esc(st.leftReps||'')}" data-side-k="leftReps" data-side="left" data-ei="${ei}" data-si="${si}"><input inputmode="numeric" placeholder="${esc(prevRight)}" value="${esc(st.rightReps||'')}" data-side-k="rightReps" data-side="right" data-ei="${ei}" data-si="${si}"><input inputmode="numeric" placeholder="${esc(prevRir)}" value="${esc(st.rir||'')}" data-k="rir" data-ei="${ei}" data-si="${si}"><button class="icon-btn" data-remove-set="${ei}:${si}" aria-label="Eliminar serie">×</button></div>`;
   }
-  return `<div class="set-row" data-set="${si}"><span class="set-num">${si+1}</span><input inputmode="decimal" placeholder="0" value="${esc(st.weight)}" data-k="weight" data-ei="${ei}" data-si="${si}"><button class="unit-btn" data-unit-toggle data-ei="${ei}" data-si="${si}">${esc(st.unit||'kg')}</button><input inputmode="numeric" placeholder="0" value="${esc(st.reps)}" data-k="reps" data-ei="${ei}" data-si="${si}"><input inputmode="numeric" placeholder="0" value="${esc(st.rir)}" data-k="rir" data-ei="${ei}" data-si="${si}"><button class="icon-btn" data-remove-set="${ei}:${si}" aria-label="Eliminar serie">×</button></div>`;
+  const prevReps=String(prev?.reps??'')!=='' ? prev.reps : '0';
+  return `<div class="set-row" data-set="${si}"><span class="set-num">${si+1}</span><input inputmode="decimal" placeholder="0" value="${esc(st.weight)}" data-k="weight" data-ei="${ei}" data-si="${si}"><button class="unit-btn" data-unit-toggle data-ei="${ei}" data-si="${si}">${esc(st.unit||'kg')}</button><input inputmode="numeric" placeholder="${esc(prevReps)}" value="${esc(st.reps)}" data-k="reps" data-ei="${ei}" data-si="${si}"><input inputmode="numeric" placeholder="${esc(prevRir)}" value="${esc(st.rir)}" data-k="rir" data-ei="${ei}" data-si="${si}"><button class="icon-btn" data-remove-set="${ei}:${si}" aria-label="Eliminar serie">×</button></div>`;
 }
 function completionPct(s){ const total=s.exercises.length; const done=s.exercises.filter(exerciseHasData).length; return total?Math.round(done/total*100):0; }
 function updateWorkoutProgress(){
@@ -815,12 +823,17 @@ function cleanSessionForSave(session){
   const s=clone(session);
   for(const e of s.exercises||[]){
     for(const st of e.sets||[]){
-      if(e.splitSides){
-        const hasSplitData=String(st?.weight??'')!=='' || String(st?.leftReps??'')!=='' || String(st?.rightReps??'')!=='';
-        if(hasSplitData && String(st?.rir??'')==='') st.rir='0';
+      const manualWeight=String(st?.weight??'')!=='' && !st?._seededWeight;
+      const hasReps=e.splitSides
+        ? (String(st?.leftReps??'')!=='' || String(st?.rightReps??'')!=='')
+        : String(st?.reps??'')!=='';
+      const hasRir=String(st?.rir??'')!=='';
+      const performed=manualWeight || hasReps || hasRir;
+      if(performed){
+        if(String(st?.rir??'')==='') st.rir='0';
       }else{
-        const hasMainData=String(st?.weight??'')!=='' || String(st?.reps??'')!=='';
-        if(hasMainData && String(st?.rir??'')==='') st.rir='0';
+        // El peso precargado es solo referencia y no debe convertirse en una serie hecha al guardar.
+        st.weight=''; st.reps=''; st.rir=''; st.leftReps=''; st.rightReps='';
       }
       for(const k of Object.keys(st)) if(k.startsWith('_')) delete st[k];
     }
