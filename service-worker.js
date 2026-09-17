@@ -1,10 +1,10 @@
-const APP_VERSION = '11.9';
-const CACHE = 'fit-log-shell-v11.9-report-settings';
+const APP_VERSION = '11.10';
+const CACHE = 'fit-log-shell-v11.10-share-header';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=11.9',
-  './app.js?v=11.9',
+  './styles.css?v=11.10',
+  './app.js?v=11.10',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',

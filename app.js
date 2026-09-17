@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.9';
+const APP_VERSION = '11.10';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -448,9 +448,14 @@ async function homeHTML(){
         <div class="dashboard-date">${esc(niceDate)}</div>
         <h1>Fit Log</h1>
       </div>
-      <button class="icon-btn app-menu-btn" data-action="open-settings" aria-label="Ajustes">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
-      </button>
+      <div class="dashboard-header-actions">
+        <button class="icon-btn app-menu-btn app-share-btn" data-action="open-report-share" aria-label="Compartir reporte">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L8.5 6.5M12 3l3.5 3.5M6 10v8.5A2.5 2.5 0 0 0 8.5 21h7A2.5 2.5 0 0 0 18 18.5V10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="icon-btn app-menu-btn" data-action="open-settings" aria-label="Ajustes">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+        </button>
+      </div>
     </header>
 
     <section class="weight-hero weight-only daily-weight-hero" data-action="measure-now">
@@ -503,7 +508,7 @@ async function homeHTML(){
         <div class="sheet-handle"></div>
         <div class="sheet-header settings-sheet-header">
           <div><div class="subtle">Fit Log</div><h3>Ajustes</h3></div>
-          <div class="settings-header-actions"><button class="btn primary compact settings-share-btn" data-action="open-report-share">Compartir</button><button class="icon-btn icon-square" data-action="close-settings" aria-label="Cerrar">✕</button></div>
+          <div class="settings-header-actions"><button class="icon-btn icon-square" data-action="close-settings" aria-label="Cerrar">✕</button></div>
         </div>
         <section class="card sheet-card update-card">
           <div class="row between update-version-row"><div><div class="subtle">Aplicación</div><h4 style="margin:5px 0 2px;font-size:20px">Actualizaciones</h4></div><span class="version-badge">v${APP_VERSION}</span></div>
