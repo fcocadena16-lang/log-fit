@@ -1091,3 +1091,17 @@ button,.btn,.icon-btn,.nav-btn,.tab,.chip,.routine-btn,.dash-card,.list-item,.ti
   .feeling-option.tone-yellow,
   .feeling-option.tone-red{font-size:9px!important;padding:0 1px!important}
 }
+
+
+/* v11.8 — registro diario peso + sueño */
+.daily-entry-card{padding:22px!important}
+.daily-metric-block{position:relative;z-index:1}
+.daily-metric-label{display:block;margin:0 0 8px 4px;font-size:14px;font-weight:800;color:#587263}
+.daily-entry-divider{height:1px;background:rgba(190,216,201,.72);margin:18px 4px}
+.sleep-input-shell{background:rgba(255,255,255,.72)!important}
+.sleep-input-shell input{font-size:58px!important}
+.sleep-input-shell span{font-size:27px!important}
+@media(max-width:520px){
+  .daily-entry-card{padding:20px!important}
+  .sleep-input-shell input{font-size:52px!important}
+}

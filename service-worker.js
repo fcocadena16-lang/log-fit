@@ -1,10 +1,10 @@
-const APP_VERSION = '11.7';
-const CACHE = 'fit-log-shell-v11.7-feeling-bar';
+const APP_VERSION = '11.8';
+const CACHE = 'fit-log-shell-v11.8-daily-sleep';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=11.7',
-  './app.js?v=11.7',
+  './styles.css?v=11.8',
+  './app.js?v=11.8',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',

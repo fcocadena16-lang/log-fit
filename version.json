@@ -1,6 +1,6 @@
 {
-  "version": "11.7",
+  "version": "11.8",
   "published": "2026-09-16",
   "name": "Fit Log",
-  "notes": "Sensaciones en una sola barra continua de amarillo a verde y rojo; botón de salida reducido a una sola flecha."
+  "notes": "Registro diario de peso y horas de sueño en la misma pantalla, con autoguardado. El sueño también aparece en Progreso y en el reporte diario."
 }

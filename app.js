@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.7';
+const APP_VERSION = '11.8';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -135,6 +135,7 @@ function replacementOptionsForExercise(exercise){
 
 const MEASURE_FIELDS = [
   ['weight','Peso','kg'],
+  ['sleepHours','Sueño','h'],
   ['armRelaxed','Brazo relajado','cm'],
   ['armFlexed','Brazo en flexión','cm'],
   ['chest','Circunferencia mesoesternal','cm'],
@@ -147,7 +148,7 @@ const MEASURE_FIELDS = [
   ['forearm','Antebrazo','cm']
 ];
 
-const BODY_MEASURE_FIELDS = MEASURE_FIELDS.filter(([k])=>k!=='weight');
+const BODY_MEASURE_FIELDS = MEASURE_FIELDS.filter(([k])=>!['weight','sleepHours'].includes(k));
 function hasBodyMeasurementData(m){
   return BODY_MEASURE_FIELDS.some(([k])=>String(m?.[k]??'').trim()!=='');
 }
@@ -870,10 +871,21 @@ async function measureHTML(){
   const measurements=(await getAll(STORE_MEASUREMENTS)).sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||0)-(b.createdAt||0));
   const weightRows=measurements.filter(x=>num(x.weight)!==null); const currentWeight=weightRows.at(-1)||null;
   const effective=await effectiveMeasurementAt(today());
+  const todayRows=measurements.filter(x=>x.date===today()).sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0));
+  const todayWeightRow=todayRows.find(x=>num(x.weight)!==null)||null;
+  const todaySleepRow=todayRows.find(x=>num(x.sleepHours)!==null)||null;
   return `<main class="screen section-screen measure-screen clean-measure-screen">
-    <section class="weight-entry-card measure-tint-card editable-weight-card">
-      <div class="weight-entry-top"><div class="weight-entry-heading"><span class="dashboard-kicker">Peso</span><small>Escribe tu peso de hoy</small></div><span id="weightSaveStatus" class="auto-save-status">Auto</span></div>
-      <label class="weight-input-shell" for="dailyWeightInput"><input id="dailyWeightInput" inputmode="decimal" type="number" step="0.1" min="20" max="400" value="${currentWeight?.weight??effective?.weight??''}" placeholder="0.0" aria-label="Peso en kilogramos"><span>kg</span></label>
+    <section class="weight-entry-card measure-tint-card editable-weight-card daily-entry-card">
+      <div class="weight-entry-top"><div class="weight-entry-heading"><span class="dashboard-kicker">Registro diario</span><small>Peso y horas de sueño</small></div><span id="dailySaveStatus" class="auto-save-status">Auto</span></div>
+      <div class="daily-metric-block">
+        <label class="daily-metric-label" for="dailyWeightInput">Peso</label>
+        <label class="weight-input-shell" for="dailyWeightInput"><input id="dailyWeightInput" inputmode="decimal" type="number" step="0.1" min="20" max="400" value="${todayWeightRow?.weight??currentWeight?.weight??effective?.weight??''}" placeholder="0.0" aria-label="Peso en kilogramos"><span>kg</span></label>
+      </div>
+      <div class="daily-entry-divider"></div>
+      <div class="daily-metric-block sleep-metric-block">
+        <label class="daily-metric-label" for="dailySleepInput">Horas de sueño</label>
+        <label class="weight-input-shell sleep-input-shell" for="dailySleepInput"><input id="dailySleepInput" inputmode="decimal" type="number" step="0.1" min="0" max="24" value="${todaySleepRow?.sleepHours??''}" placeholder="0.0" aria-label="Horas de sueño"><span>h</span></label>
+      </div>
       <p class="weight-entry-note">Se guarda automáticamente al escribir.</p>
     </section>
     <section class="body-measure-launch card clickable-card measure-tint-card" data-open-body-measures>
@@ -891,16 +903,34 @@ function openBodyMeasureSheet(){
     document.getElementById('measureForm')?.addEventListener('focusin',e=>{if(e.target.matches('input,textarea'))setTimeout(()=>e.target.scrollIntoView({block:'center'}),180);});
   });
 }
-async function saveDailyWeightValue(value){
-  const weight=String(value??'').trim(); const n=+weight; if(!weight || !Number.isFinite(n) || n<20 || n>400) return false;
+async function getTodayDailyMeasurement(){
   const date=today(); const all=await getAll(STORE_MEASUREMENTS);
-  let obj=all.filter(m=>m.kind==='weight' && m.date===date).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))[0];
-  if(obj) obj={...obj,weight:String(n),updatedAt:Date.now()}; else obj={id:uid('measure'),kind:'weight',date,weight:String(n),createdAt:Date.now()};
-  await put(STORE_MEASUREMENTS,obj); await getNutritionGoal(); return true;
+  return all.filter(m=>m.date===date && (m.kind==='daily'||m.kind==='weight')).sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0))[0]||null;
 }
+async function saveDailyMetric(field,value){
+  const raw=String(value??'').trim();
+  const n=+raw;
+  const valid=field==='weight' ? (raw && Number.isFinite(n) && n>=20 && n<=400) : (raw && Number.isFinite(n) && n>=0 && n<=24);
+  if(!valid) return false;
+  const date=today();
+  let obj=await getTodayDailyMeasurement();
+  if(obj) obj={...obj,kind:'daily',[field]:String(n),updatedAt:Date.now()};
+  else obj={id:uid('measure'),kind:'daily',date,[field]:String(n),createdAt:Date.now(),updatedAt:Date.now()};
+  await put(STORE_MEASUREMENTS,obj);
+  if(field==='weight') await getNutritionGoal();
+  return true;
+}
+async function saveDailyWeightValue(value){ return saveDailyMetric('weight',value); }
+async function saveDailySleepValue(value){ return saveDailyMetric('sleepHours',value); }
+function setDailySaveStatus(text){ const status=document.getElementById('dailySaveStatus'); if(status)status.textContent=text; }
 function queueDailyWeightSave(input){
-  clearTimeout(weightAutoSaveTimer); const status=document.getElementById('weightSaveStatus'); if(status)status.textContent='Guardando…';
-  weightAutoSaveTimer=setTimeout(async()=>{const ok=await saveDailyWeightValue(input.value);if(status)status.textContent=ok?'Guardado':'Revisa el valor';},500);
+  clearTimeout(weightAutoSaveTimer); setDailySaveStatus('Guardando…');
+  weightAutoSaveTimer=setTimeout(async()=>{const ok=await saveDailyWeightValue(input.value);setDailySaveStatus(ok?'Guardado':'Revisa');},500);
+}
+let sleepAutoSaveTimer=null;
+function queueDailySleepSave(input){
+  clearTimeout(sleepAutoSaveTimer); setDailySaveStatus('Guardando…');
+  sleepAutoSaveTimer=setTimeout(async()=>{const ok=await saveDailySleepValue(input.value);setDailySaveStatus(ok?'Guardado':'Revisa');},500);
 }
 async function saveMeasurement(form){
   const previous=await effectiveMeasurementAt(today());
@@ -920,7 +950,7 @@ async function historyHTML(){
   const measures=(await getAll(STORE_MEASUREMENTS)).sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt);
   const list=historyTab==='sessions'?
     (sessions.length?sessions.map(s=>`<button class="list-item" data-session-id="${s.id}"><strong>${esc(s.routine)}</strong><span class="subtle">${fmtDate(s.date)} · ${s.exercises.length} ejercicios</span><div class="chips">${s.overallFeeling?`<span class="chip">${esc(s.overallFeeling)}</span>`:''}<span class="chip">${s.exercises.reduce((n,e)=>n+e.sets.filter(x=>x.reps!==''||x.weight!=='').length,0)} series</span></div></button>`).join(''):'<div class="empty">No hay entrenamientos guardados.</div>'):
-    (measures.length?measures.map(m=>`<button class="list-item" data-measure-id="${m.id}"><strong>${m.kind==='weight'?'Peso':'Mediciones'} · ${fmtDate(m.date)}</strong><span class="subtle">${m.weight?`${m.weight} kg`:''}${hasBodyMeasurementData(m)?`${m.weight?' · ':''}medidas corporales`:''}</span></button>`).join(''):'<div class="empty">No hay mediciones guardadas.</div>');
+    (measures.length?measures.map(m=>{const daily=m.kind==='weight'||m.kind==='daily';const detail=[m.weight?`${m.weight} kg`:'',m.sleepHours?`${m.sleepHours} h sueño`:'',hasBodyMeasurementData(m)?'medidas corporales':''].filter(Boolean).join(' · ');return `<button class="list-item" data-measure-id="${m.id}"><strong>${daily?'Registro diario':'Mediciones'} · ${fmtDate(m.date)}</strong><span class="subtle">${detail}</span></button>`;}).join(''):'<div class="empty">No hay mediciones guardadas.</div>');
   return `<main class="screen"><div class="topbar"><button class="btn ghost" data-action="history-back">← Inicio</button><div style="text-align:right"><div class="subtle">Todos tus registros</div><h1>Historial</h1></div></div><div class="tabs"><button class="tab ${historyTab==='sessions'?'active':''}" data-history-tab="sessions">Entrenamientos</button><button class="tab ${historyTab==='measurements'?'active':''}" data-history-tab="measurements">Mediciones</button></div><div class="list" style="margin-top:12px">${list}</div></main>`;
 }
 function historySetHTML(e,st,i){
@@ -940,7 +970,7 @@ async function showSession(id){
 async function showMeasurement(id){
   const m=await getOne(STORE_MEASUREMENTS,id); if(!m)return; document.getElementById('bottomNav').classList.add('hide');
   const isWeight=m.kind==='weight' && !hasBodyMeasurementData(m);
-  document.getElementById('app').innerHTML=`<main class="screen"><div class="topbar"><button class="btn ghost" data-back-history>← Historial</button><button class="btn danger" data-delete-measure="${m.id}">Eliminar</button></div><h1>${isWeight?'Peso':'Mediciones'}</h1><div class="subtle">${fmtDate(m.date)}</div><section class="card">${m.weight?`<div class="row between"><span>Peso</span><strong>${esc(m.weight)} kg</strong></div>${hasBodyMeasurementData(m)?'<div class="divider"></div>':''}`:''}${BODY_MEASURE_FIELDS.map(([k,l,u])=>m[k]?`<div class="row between"><span>${l}</span><strong>${esc(m[k])} ${u}</strong></div><div class="divider"></div>`:'').join('')}${m.notes?`<p class="subtle">${esc(m.notes)}</p>`:''}</section></main>`;
+  document.getElementById('app').innerHTML=`<main class="screen"><div class="topbar"><button class="btn ghost" data-back-history>← Historial</button><button class="btn danger" data-delete-measure="${m.id}">Eliminar</button></div><h1>${(isWeight||m.kind==='daily')?'Registro diario':'Mediciones'}</h1><div class="subtle">${fmtDate(m.date)}</div><section class="card">${m.weight?`<div class="row between"><span>Peso</span><strong>${esc(m.weight)} kg</strong></div>`:''}${m.sleepHours?`${m.weight?'<div class="divider"></div>':''}<div class="row between"><span>Sueño</span><strong>${esc(m.sleepHours)} h</strong></div>`:''}${hasBodyMeasurementData(m)?'<div class="divider"></div>':''}${BODY_MEASURE_FIELDS.map(([k,l,u])=>m[k]?`<div class="row between"><span>${l}</span><strong>${esc(m[k])} ${u}</strong></div><div class="divider"></div>`:'').join('')}${m.notes?`<p class="subtle">${esc(m.notes)}</p>`:''}</section></main>`;
   document.querySelector('[data-back-history]').onclick=()=>{document.getElementById('bottomNav').classList.remove('hide');render();};
   document.querySelector('[data-delete-measure]').onclick=async()=>{if(confirm('¿Eliminar este registro?')){await del(STORE_MEASUREMENTS,id);document.getElementById('bottomNav').classList.remove('hide');render();}};
 }
@@ -1543,7 +1573,10 @@ function bindViewEvents(){
   document.getElementById('backupFileInput')?.addEventListener('change',async e=>{const file=e.target.files?.[0];if(file) await importBackupFile(file);e.target.value='';});
   const dailyWeightInput=document.getElementById('dailyWeightInput');
   dailyWeightInput?.addEventListener('input',e=>queueDailyWeightSave(e.currentTarget));
-  dailyWeightInput?.addEventListener('blur',async e=>{clearTimeout(weightAutoSaveTimer);const ok=await saveDailyWeightValue(e.currentTarget.value);const status=document.getElementById('weightSaveStatus');if(status)status.textContent=ok?'Guardado':'Revisa el valor';});
+  dailyWeightInput?.addEventListener('blur',async e=>{clearTimeout(weightAutoSaveTimer);const ok=await saveDailyWeightValue(e.currentTarget.value);setDailySaveStatus(ok?'Guardado':'Revisa');});
+  const dailySleepInput=document.getElementById('dailySleepInput');
+  dailySleepInput?.addEventListener('input',e=>queueDailySleepSave(e.currentTarget));
+  dailySleepInput?.addEventListener('blur',async e=>{clearTimeout(sleepAutoSaveTimer);const ok=await saveDailySleepValue(e.currentTarget.value);setDailySaveStatus(ok?'Guardado':'Revisa');});
   document.querySelectorAll('[data-open-body-measures]').forEach(el=>el.addEventListener('click',openBodyMeasureSheet));
   document.getElementById('birthDateInput')?.addEventListener('change',e=>{const age=ageFromBirthDate(e.target.value,today());const el=document.getElementById('calculatedAge');if(el)el.textContent=age!==null?`${age} años`:'—';});
   document.querySelectorAll('[data-history-tab]').forEach(b=>b.addEventListener('click',()=>{historyTab=b.dataset.historyTab;render();}));
