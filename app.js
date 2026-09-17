@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.11';
+const APP_VERSION = '11.12';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -988,11 +988,11 @@ async function progressHTML(){
 }
 function chartHTML(data,key){
   const pts=data.map(d=>({date:d.date,val:num(d[key])})).filter(x=>x.val!==null); if(pts.length<2) return '<div class="empty">Registra al menos dos mediciones para generar una gráfica.</div>';
-  const vals=pts.map(p=>p.val), min=Math.min(...vals), max=Math.max(...vals), rawSpan=(max-min)||1, margin=rawSpan*.20, lo=min-margin, hi=max+margin, span=hi-lo; const w=680,h=340,padX=44,padTop=30,padBottom=82;
+  const vals=pts.map(p=>p.val), min=Math.min(...vals), max=Math.max(...vals), rawSpan=(max-min)||1, margin=rawSpan*.20, lo=min-margin, hi=max+margin, span=hi-lo; const w=680,h=392,padX=44,padTop=30,padBottom=124;
   const xy=pts.map((p,i)=>({x:padX+(i/(pts.length-1))*(w-padX*2),y:padTop+((hi-p.val)/span)*(h-padTop-padBottom),...p}));
   const path=xy.map((p,i)=>`${i?'L':'M'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' '); const area=`${path} L ${xy.at(-1).x.toFixed(1)} ${h-padBottom} L ${xy[0].x.toFixed(1)} ${h-padBottom} Z`;
   const grid=[0,.5,1].map(t=>{const y=padTop+t*(h-padTop-padBottom);return `<line x1="${padX}" y1="${y}" x2="${w-padX}" y2="${y}" class="chart-grid"/>`}).join('');
-  return `<div class="chart-wrap premium-chart"><svg viewBox="0 0 ${w} ${h}" class="chart-svg" role="img"><defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5c7cfa" stop-opacity=".22"/><stop offset="100%" stop-color="#5c7cfa" stop-opacity="0"/></linearGradient></defs>${grid}<path d="${area}" class="chart-area"/><path d="${path}" class="chart-line"/>${xy.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="${i===0||i===xy.length-1?6.8:5}" class="chart-dot"/><text x="${p.x}" y="${Math.max(20,p.y-14)}" text-anchor="middle" class="chart-label chart-value chart-value-lg">${round(p.val,1)}</text><text x="${p.x}" y="${h-12}" text-anchor="end" transform="rotate(-32 ${p.x} ${h-12})" class="chart-label chart-date">${fmtDate(p.date)}</text>`).join('')}</svg></div>`;
+  return `<div class="chart-wrap premium-chart"><svg viewBox="0 0 ${w} ${h}" class="chart-svg" role="img"><defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5c7cfa" stop-opacity=".22"/><stop offset="100%" stop-color="#5c7cfa" stop-opacity="0"/></linearGradient></defs>${grid}<path d="${area}" class="chart-area"/><path d="${path}" class="chart-line"/>${xy.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="${i===0||i===xy.length-1?6.8:5}" class="chart-dot"/><text x="${p.x}" y="${Math.max(20,p.y-14)}" text-anchor="middle" class="chart-label chart-value chart-value-lg">${round(p.val,1)}</text><text x="${p.x}" y="${h-18}" text-anchor="end" transform="rotate(-32 ${p.x} ${h-18})" class="chart-label chart-date">${fmtDate(p.date)}</text>`).join('')}</svg></div>`;
 }
 async function renderExerciseProgress(name){
   const box=document.getElementById('exerciseProgress'); if(!name){box.innerHTML='';return;}
@@ -1658,7 +1658,7 @@ document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>
 window.addEventListener('online',()=>document.querySelectorAll('.status').forEach(x=>x.textContent='● Local + red'));
 window.addEventListener('offline',()=>document.querySelectorAll('.status').forEach(x=>x.textContent='● Local'));
 
-if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.11',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
+if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.12',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
 openDB().then(seedStarterFoods).then(async()=>{
   activeSessionDraft=loadWorkoutDraft() || await loadWorkoutDraftDB();
   if(activeSessionDraft){persistWorkoutDraft();renderWorkout();} else await render();
