@@ -1,6 +1,6 @@
 {
-  "version": "11.14",
+  "version": "11.15",
   "published": "2026-09-17",
   "name": "Fit Log",
-  "notes": "Gráfica de progreso ampliada, fechas en día/mes y año mostrado en pequeño arriba a la izquierda."
+  "notes": "Fechas de la gráfica en día/mes, con inclinación ligera y más espacio inferior para que se vean completas."
 }
