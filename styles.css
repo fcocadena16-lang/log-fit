@@ -1138,3 +1138,16 @@ button,.btn,.icon-btn,.nav-btn,.tab,.chip,.routine-btn,.dash-card,.list-item,.ti
 /* v11.13: reserve visible room for full rotated chart dates */
 #chartArea .chart-svg{overflow:visible}
 #chartArea .premium-chart{padding-bottom:14px}
+
+/* v11.14 — gráfica de progreso más amplia */
+.progress-chart-card{padding-left:10px!important;padding-right:10px!important;}
+#chartArea{margin-left:-6px;margin-right:-6px;}
+#chartArea .premium-chart{padding:2px 0 6px!important;}
+.chart-year{font-size:15px!important;font-weight:800!important;fill:#8a94a8!important;letter-spacing:.02em;}
+.chart-date{font-size:18px!important;font-weight:850!important;}
+@media (max-width:700px){
+  .progress-chart-card{margin-left:-8px;margin-right:-8px;padding-left:8px!important;padding-right:8px!important;}
+  #chartArea{margin-left:-8px;margin-right:-8px;}
+  .chart-year{font-size:13px!important;}
+  .chart-date{font-size:16px!important;}
+}
