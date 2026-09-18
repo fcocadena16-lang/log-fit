@@ -1,12 +1,12 @@
-const APP_VERSION = '11.15';
-const CACHE = 'fit-log-shell-v11.15-chart-angled';
+const APP_VERSION = '11.16';
+const CACHE = 'fit-log-shell-v11.16-workout-tools';
 const CACHE_PREFIX = 'fit-log-shell-';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=11.15',
-  './app.js?v=11.15',
+  './styles.css?v=11.16',
+  './app.js?v=11.16',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',

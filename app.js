@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.15';
+const APP_VERSION = '11.16';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -661,6 +661,15 @@ function previousSetRowHTML(st,idx,splitSides=false){
 function cycleUnit(current){ return current==='kg'?'lb':'kg'; }
 function timerRemainingSeconds(){ return restTimerEndAt?Math.max(0,Math.ceil((restTimerEndAt-Date.now())/1000)):180; }
 function timerLabel(){ const sec=timerRemainingSeconds(); const m=Math.floor(sec/60),s=sec%60; return `${m}:${String(s).padStart(2,'0')}`; }
+function syncWorkoutFloatingToolsViewport(){
+  const tools=document.querySelector('.workout-floating-tools');
+  if(!tools) return;
+  const vv=window.visualViewport;
+  const offsetTop=vv?Math.max(0,vv.offsetTop||0):0;
+  const offsetRight=vv?Math.max(0,(window.innerWidth-(vv.offsetLeft||0)-vv.width)):0;
+  tools.style.setProperty('--workout-vv-top',`${offsetTop}px`);
+  tools.style.setProperty('--workout-vv-right',`${offsetRight}px`);
+}
 function ensureTimerInterval(){
   clearInterval(restTimerInterval);
   restTimerInterval=setInterval(updateRestTimerUI,500);
@@ -699,7 +708,7 @@ function playRestAlarm(){
   const btn=document.querySelector('[data-rest-timer]'); if(btn) btn.classList.add('timer-done');
 }
 function startRestTimer(){
-  activateWorkoutAudio(); restTimerAlarmed=false; restTimerEndAt=Date.now()+180000; localStorage.setItem(REST_TIMER_KEY,String(restTimerEndAt)); ensureTimerInterval(); closeWorkoutSheet();
+  activateWorkoutAudio(); restTimerAlarmed=false; restTimerEndAt=Date.now()+180000; localStorage.setItem(REST_TIMER_KEY,String(restTimerEndAt)); document.querySelector('[data-rest-timer]')?.classList.remove('timer-done'); ensureTimerInterval(); closeWorkoutSheet();
 }
 function stopRestTimer(){ restTimerEndAt=0; restTimerAlarmed=false; localStorage.removeItem(REST_TIMER_KEY); updateRestTimerUI(); closeWorkoutSheet(); }
 function renderWorkout(){
@@ -724,7 +733,7 @@ function renderWorkout(){
     <div class="save-actions"><button class="btn primary block save-workout-btn" data-action="save-session">Guardar entrenamiento</button></div>
     <div id="workoutSheetHost"></div>
   </main>`;
-  bindWorkoutEvents(); ensureTimerInterval();
+  bindWorkoutEvents(); ensureTimerInterval(); syncWorkoutFloatingToolsViewport();
 }
 function exerciseHTML(e,i){
   const alts=replacementOptionsForExercise(e); const group=e.group||EXERCISE_META[e.name]?.group||'';
@@ -789,7 +798,7 @@ function bindWorkoutEvents(){
   document.querySelector('[data-add-exercise]')?.addEventListener('click',openAddExerciseSheet);
   document.querySelectorAll('[data-remove-exercise]').forEach(b=>b.addEventListener('click',()=>removeCustomExercise(+b.dataset.removeExercise)));
   document.querySelector('[data-open-calculator]')?.addEventListener('click',openCalculatorSheet);
-  document.querySelector('[data-rest-timer]')?.addEventListener('click',openTimerSheet);
+  document.querySelector('[data-rest-timer]')?.addEventListener('click',startRestTimer);
   document.querySelector('[data-action="save-session"]')?.addEventListener('click',saveSession);
 }
 function toggleExerciseSides(index){
@@ -1661,7 +1670,13 @@ document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>
 window.addEventListener('online',()=>document.querySelectorAll('.status').forEach(x=>x.textContent='● Local + red'));
 window.addEventListener('offline',()=>document.querySelectorAll('.status').forEach(x=>x.textContent='● Local'));
 
-if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.15',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize',syncWorkoutFloatingToolsViewport);
+  window.visualViewport.addEventListener('scroll',syncWorkoutFloatingToolsViewport);
+}
+window.addEventListener('resize',syncWorkoutFloatingToolsViewport);
+
+if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.16',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
 openDB().then(seedStarterFoods).then(async()=>{
   activeSessionDraft=loadWorkoutDraft() || await loadWorkoutDraftDB();
   if(activeSessionDraft){persistWorkoutDraft();renderWorkout();} else await render();

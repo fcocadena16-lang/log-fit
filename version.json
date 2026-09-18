@@ -1,6 +1,6 @@
 {
-  "version": "11.15",
+  "version": "11.16",
   "published": "2026-09-17",
   "name": "Fit Log",
-  "notes": "Fechas de la gráfica en día/mes, con inclinación ligera y más espacio inferior para que se vean completas."
+  "notes": "Calculadora y temporizador permanecen visibles durante el entrenamiento incluso con el teclado abierto; tocar el temporizador inicia o reinicia inmediatamente 3 minutos."
 }

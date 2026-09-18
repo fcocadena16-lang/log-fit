@@ -1151,3 +1151,14 @@ button,.btn,.icon-btn,.nav-btn,.tab,.chip,.routine-btn,.dash-card,.list-item,.ti
   .chart-year{font-size:13px!important;}
   .chart-date{font-size:16px!important;}
 }
+
+/* v11.16 — herramientas de entrenamiento siempre visibles con teclado iOS */
+.workout-floating-tools{
+  top:calc(var(--workout-vv-top, 0px) + env(safe-area-inset-top) + 14px)!important;
+  right:calc(var(--workout-vv-right, 0px) + 18px)!important;
+  position:fixed!important;
+  z-index:1000!important;
+}
+@media(max-width:520px){
+  .workout-floating-tools{right:calc(var(--workout-vv-right, 0px) + 8px)!important;}
+}
