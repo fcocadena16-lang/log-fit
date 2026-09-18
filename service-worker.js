@@ -1,12 +1,12 @@
-const APP_VERSION = '11.16';
-const CACHE = 'fit-log-shell-v11.16-workout-tools';
+const APP_VERSION = '11.17';
+const CACHE = 'fit-log-shell-v11.17-cardio-reference';
 const CACHE_PREFIX = 'fit-log-shell-';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=11.16',
-  './app.js?v=11.16',
+  './styles.css?v=11.17',
+  './app.js?v=11.17',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',

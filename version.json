@@ -1,6 +1,6 @@
 {
-  "version": "11.16",
+  "version": "11.17",
   "published": "2026-09-17",
   "name": "Fit Log",
-  "notes": "Calculadora y temporizador permanecen visibles durante el entrenamiento incluso con el teclado abierto; tocar el temporizador inicia o reinicia inmediatamente 3 minutos."
+  "notes": "Cardio: inclinación y velocidad se guardan como valores de referencia de la caminadora, sin asumir % ni km/h."
 }

@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.16';
+const APP_VERSION = '11.17';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -728,7 +728,7 @@ function renderWorkout(){
     </section>
     <div id="exerciseList">${s.exercises.map((e,i)=>exerciseHTML(e,i)).join('')}</div>
     <button class="btn ghost block add-exercise-btn" data-add-exercise>+ Agregar ejercicio</button>
-    <section class="card cardio-card"><div class="section-kicker">Final</div><h3>Cardio</h3><div class="cardio-grid"><div class="field"><label>Minutos</label><input inputmode="numeric" type="number" min="0" step="1" value="${esc(s.cardio.minutes)}" data-cardio="minutes"></div><div class="field"><label>Ritmo cardiaco (bpm)</label><input inputmode="numeric" type="number" min="0" step="1" value="${esc(s.cardio.heartRate)}" data-cardio="heartRate"></div><div class="field"><label>Inclinación (%)</label><input inputmode="decimal" type="number" min="0" step="0.1" value="${esc(s.cardio.incline)}" data-cardio="incline"></div><div class="field"><label>Velocidad (km/h)</label><input inputmode="decimal" type="number" min="0" step="0.1" value="${esc(s.cardio.speed)}" data-cardio="speed"></div></div></section>
+    <section class="card cardio-card"><div class="section-kicker">Final</div><h3>Cardio</h3><div class="cardio-grid"><div class="field"><label>Minutos</label><input inputmode="numeric" type="number" min="0" step="1" value="${esc(s.cardio.minutes)}" data-cardio="minutes"></div><div class="field"><label>Ritmo cardiaco (bpm)</label><input inputmode="numeric" type="number" min="0" step="1" value="${esc(s.cardio.heartRate)}" data-cardio="heartRate"></div><div class="field"><label>Inclinación</label><input inputmode="decimal" type="number" min="0" step="0.1" value="${esc(s.cardio.incline)}" data-cardio="incline"></div><div class="field"><label>Velocidad</label><input inputmode="decimal" type="number" min="0" step="0.1" value="${esc(s.cardio.speed)}" data-cardio="speed"></div></div></section>
     <section class="card session-card"><div class="section-kicker">Cierre</div><h3>Sesión</h3><div class="field feeling-field"><label>Sensación general</label>${feelingPickerHTML(SESSION_FEELINGS,s.overallFeeling,'data-overall-feeling-choice')}</div><div class="field"><label>Notas generales</label><textarea id="sessionNotes" placeholder="Resumen del entrenamiento…">${esc(s.notes)}</textarea></div></section>
     <div class="save-actions"><button class="btn primary block save-workout-btn" data-action="save-session">Guardar entrenamiento</button></div>
     <div id="workoutSheetHost"></div>
@@ -972,7 +972,7 @@ function historySetHTML(e,st,i){
 async function showSession(id){
   const s=await getOne(STORE_SESSIONS,id); if(!s)return; document.getElementById('bottomNav').classList.add('hide');
   const cardio=s.cardio||{}; const hasCardio=Object.values(cardio).some(v=>String(v??'')!=='');
-  document.getElementById('app').innerHTML=`<main class="screen"><div class="topbar"><button class="btn ghost" data-back-history>← Historial</button><div class="row"><button class="btn ghost" data-session-report="${s.date}">Reporte</button><button class="btn danger" data-delete-session="${s.id}">Eliminar</button></div></div><h1>${esc(s.routine)}</h1><div class="subtle">${fmtDate(s.date)}</div>${s.exercises.map(e=>`<section class="card"><h3>${esc(e.name)}</h3>${(e.sets||[]).filter(st=>setHasData(st,!!e.splitSides)).map((st,i)=>historySetHTML(e,st,i)).join('<div class="divider"></div>')||'<span class="subtle">Sin series registradas</span>'}${e.feeling?`<div class="chips"><span class="chip">${esc(e.feeling)}</span></div>`:''}${e.notes?`<p class="subtle">${esc(e.notes)}</p>`:''}</section>`).join('')}${hasCardio?`<section class="card"><h3>Cardio</h3><div class="cardio-history-grid">${cardio.minutes?`<div><span>Minutos</span><strong>${esc(cardio.minutes)}</strong></div>`:''}${cardio.heartRate?`<div><span>Ritmo cardiaco</span><strong>${esc(cardio.heartRate)} bpm</strong></div>`:''}${cardio.incline?`<div><span>Inclinación</span><strong>${esc(cardio.incline)}%</strong></div>`:''}${cardio.speed?`<div><span>Velocidad</span><strong>${esc(cardio.speed)} km/h</strong></div>`:''}</div></section>`:''}${s.overallFeeling||s.notes?`<section class="card"><h3>Sesión</h3>${s.overallFeeling?`<p>${esc(s.overallFeeling)}</p>`:''}${s.notes?`<p class="subtle">${esc(s.notes)}</p>`:''}</section>`:''}</main>`;
+  document.getElementById('app').innerHTML=`<main class="screen"><div class="topbar"><button class="btn ghost" data-back-history>← Historial</button><div class="row"><button class="btn ghost" data-session-report="${s.date}">Reporte</button><button class="btn danger" data-delete-session="${s.id}">Eliminar</button></div></div><h1>${esc(s.routine)}</h1><div class="subtle">${fmtDate(s.date)}</div>${s.exercises.map(e=>`<section class="card"><h3>${esc(e.name)}</h3>${(e.sets||[]).filter(st=>setHasData(st,!!e.splitSides)).map((st,i)=>historySetHTML(e,st,i)).join('<div class="divider"></div>')||'<span class="subtle">Sin series registradas</span>'}${e.feeling?`<div class="chips"><span class="chip">${esc(e.feeling)}</span></div>`:''}${e.notes?`<p class="subtle">${esc(e.notes)}</p>`:''}</section>`).join('')}${hasCardio?`<section class="card"><h3>Cardio</h3><div class="cardio-history-grid">${cardio.minutes?`<div><span>Minutos</span><strong>${esc(cardio.minutes)}</strong></div>`:''}${cardio.heartRate?`<div><span>Ritmo cardiaco</span><strong>${esc(cardio.heartRate)} bpm</strong></div>`:''}${cardio.incline?`<div><span>Inclinación</span><strong>${esc(cardio.incline)}</strong></div>`:''}${cardio.speed?`<div><span>Velocidad</span><strong>${esc(cardio.speed)}</strong></div>`:''}</div></section>`:''}${s.overallFeeling||s.notes?`<section class="card"><h3>Sesión</h3>${s.overallFeeling?`<p>${esc(s.overallFeeling)}</p>`:''}${s.notes?`<p class="subtle">${esc(s.notes)}</p>`:''}</section>`:''}</main>`;
   document.querySelector('[data-back-history]').onclick=()=>{document.getElementById('bottomNav').classList.remove('hide');render();};
   document.querySelector('[data-session-report]')?.addEventListener('click',e=>shareDailyReport(e.currentTarget.dataset.sessionReport));
   document.querySelector('[data-delete-session]').onclick=async()=>{if(confirm('¿Eliminar este entrenamiento?')){await del(STORE_SESSIONS,id);document.getElementById('bottomNav').classList.remove('hide');render();}};
@@ -1587,7 +1587,7 @@ async function buildDailyReport(date,{includeBody=false}={}){
       if(e.notes) lines.push(`  Nota: ${e.notes}`);
     }
     const c=s.cardio||{};
-    if(Object.values(c).some(v=>String(v??'')!=='')) lines.push(`Cardio: ${c.minutes||'—'} min · ${c.heartRate||'—'} bpm · inclinación ${c.incline||'—'}% · ${c.speed||'—'} km/h`);
+    if(Object.values(c).some(v=>String(v??'')!=='')) lines.push(`Cardio: ${c.minutes||'—'} min · ${c.heartRate||'—'} bpm · inclinación ${c.incline||'—'} · velocidad ${c.speed||'—'}`);
     if(s.notes) lines.push(`Notas de sesión: ${s.notes}`);
   }
 
@@ -1676,7 +1676,7 @@ if(window.visualViewport){
 }
 window.addEventListener('resize',syncWorkoutFloatingToolsViewport);
 
-if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.16',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
+if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.17',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
 openDB().then(seedStarterFoods).then(async()=>{
   activeSessionDraft=loadWorkoutDraft() || await loadWorkoutDraftDB();
   if(activeSessionDraft){persistWorkoutDraft();renderWorkout();} else await render();
