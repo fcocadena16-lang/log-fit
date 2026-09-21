@@ -1,17 +1,18 @@
 'use strict';
 
-const APP_VERSION = '11.17';
+const APP_VERSION = '11.18';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
 const DB_NAME = 'fit-log-db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_SESSIONS = 'sessions';
 const STORE_MEASUREMENTS = 'measurements';
 const STORE_SETTINGS = 'settings';
 const STORE_FOODS = 'foods';
 const STORE_FOOD_DAYS = 'foodDays';
 const STORE_FOOD_TEMPLATES = 'foodTemplates';
+const STORE_EXERCISES = 'exercises';
 
 const EXERCISE_FEELINGS = [
   {value:'Muy ligero',label:'Muy ligero',tone:'green'},
@@ -113,14 +114,27 @@ const EXERCISE_META = {
   'Cable crunch': {group:'Abdomen'}
 };
 
-function exerciseCatalog(){
+let exerciseCatalogCache=[];
+let exerciseCatalogLoaded=false;
+function starterExerciseCatalog(){
   const map = new Map();
   for(const routine of Object.values(ROUTINES)){
     for(const [name,unit,setCount,seed] of routine){
-      if(!map.has(name)) map.set(name,{name,unit,setCount,seed,group:EXERCISE_META[name]?.group||'Otro'});
+      if(!map.has(name)) map.set(name,{name,sourceName:name,unit,setCount,seed,group:EXERCISE_META[name]?.group||'Otro',splitSides:false});
     }
   }
   return [...map.values()];
+}
+function exerciseCatalog(){
+  return exerciseCatalogLoaded ? exerciseCatalogCache : starterExerciseCatalog();
+}
+async function refreshExerciseCatalogCache(){
+  exerciseCatalogCache=(await getAll(STORE_EXERCISES)).sort((a,b)=>a.name.localeCompare(b.name,'es'));
+  exerciseCatalogLoaded=true;
+  return exerciseCatalogCache;
+}
+function catalogExerciseForSource(name){
+  return exerciseCatalog().find(x=>x.sourceName===name || x.name===name) || null;
 }
 function replacementOptions(name){
   const group=EXERCISE_META[name]?.group;
@@ -221,6 +235,9 @@ let foodScreen = 'main';
 let foodPickerMealIndex = null;
 let foodPickerFoodId = null;
 let foodEditorId = null;
+let trainScreen = 'main';
+let exerciseEditorId = null;
+let pendingExerciseInsertIndex = null;
 
 const WORKOUT_DRAFT_KEY = 'fit-log-active-workout-v1';
 const REST_TIMER_KEY = 'fit-log-rest-timer-end-v1';
@@ -241,6 +258,7 @@ function openDB(){
       if(!db.objectStoreNames.contains(STORE_FOODS)) db.createObjectStore(STORE_FOODS,{keyPath:'id'});
       if(!db.objectStoreNames.contains(STORE_FOOD_DAYS)) db.createObjectStore(STORE_FOOD_DAYS,{keyPath:'id'});
       if(!db.objectStoreNames.contains(STORE_FOOD_TEMPLATES)) db.createObjectStore(STORE_FOOD_TEMPLATES,{keyPath:'id'});
+      if(!db.objectStoreNames.contains(STORE_EXERCISES)) db.createObjectStore(STORE_EXERCISES,{keyPath:'id'});
     };
     req.onsuccess = ()=>resolve(req.result);
     req.onerror = ()=>reject(req.error);
@@ -294,17 +312,51 @@ async function seedStarterFoods(){
   await saveSetting('starterFoodsV1',{done:true,createdAt:Date.now()});
 }
 
+async function seedStarterExercises(){
+  const seeded=await getSetting('starterExercisesV1');
+  if(!seeded){
+    const current=await getAll(STORE_EXERCISES);
+    const names=new Set(current.map(e=>String(e.name||'').toLowerCase()));
+    const items=[];
+    for(const base of starterExerciseCatalog()){
+      if(names.has(base.name.toLowerCase())) continue;
+      items.push({
+        id:uid('exercise'),name:base.name,sourceName:base.sourceName||base.name,
+        group:base.group||'Otro',unit:base.unit||'kg',setCount:Math.max(1,+base.setCount||2),
+        splitSides:!!base.splitSides,createdAt:Date.now(),updatedAt:Date.now()
+      });
+      names.add(base.name.toLowerCase());
+    }
+    const sessions=await getAll(STORE_SESSIONS);
+    for(const session of sessions){
+      for(const ex of session.exercises||[]){
+        const name=String(ex?.name||'').trim();
+        if(!name || names.has(name.toLowerCase())) continue;
+        items.push({
+          id:uid('exercise'),name,sourceName:name,group:ex.group||EXERCISE_META[name]?.group||'Otro',
+          unit:ex.defaultUnit||ex.sets?.[0]?.unit||'kg',setCount:Math.max(1,ex.sets?.length||2),
+          splitSides:!!ex.splitSides,createdAt:Date.now(),updatedAt:Date.now()
+        });
+        names.add(name.toLowerCase());
+      }
+    }
+    await putMany(STORE_EXERCISES,items);
+    await saveSetting('starterExercisesV1',{done:true,createdAt:Date.now()});
+  }
+  await refreshExerciseCatalogCache();
+}
+
 function backupFileName(){
   return `fit-log-respaldo-${today()}.json`;
 }
 async function buildBackup(){
-  const [sessions,measurements,settings,foods,foodDays,foodTemplates]=await Promise.all([
+  const [sessions,measurements,settings,foods,foodDays,foodTemplates,exercises]=await Promise.all([
     getAll(STORE_SESSIONS),getAll(STORE_MEASUREMENTS),getAll(STORE_SETTINGS),
-    getAll(STORE_FOODS),getAll(STORE_FOOD_DAYS),getAll(STORE_FOOD_TEMPLATES)
+    getAll(STORE_FOODS),getAll(STORE_FOOD_DAYS),getAll(STORE_FOOD_TEMPLATES),getAll(STORE_EXERCISES)
   ]);
   return {
-    format:'fit-log-backup',backupVersion:2,app:'Fit Log',exportedAt:new Date().toISOString(),
-    data:{sessions,measurements,settings,foods,foodDays,foodTemplates}
+    format:'fit-log-backup',backupVersion:3,app:'Fit Log',exportedAt:new Date().toISOString(),
+    data:{sessions,measurements,settings,foods,foodDays,foodTemplates,exercises}
   };
 }
 async function exportBackup(){
@@ -329,9 +381,9 @@ async function exportBackup(){
   }catch(err){ console.error(err); if(msg) msg.textContent='No se pudo crear el respaldo.'; alert('No se pudo crear el respaldo.'); }
 }
 function validateBackup(obj){
-  if(!obj || obj.format!=='fit-log-backup' || ![1,2].includes(obj.backupVersion) || !obj.data) throw new Error('El archivo no es un respaldo válido de Fit Log.');
+  if(!obj || obj.format!=='fit-log-backup' || ![1,2,3].includes(obj.backupVersion) || !obj.data) throw new Error('El archivo no es un respaldo válido de Fit Log.');
   for(const key of ['sessions','measurements','settings']) if(!Array.isArray(obj.data[key])) throw new Error('El respaldo está incompleto o dañado.');
-  for(const key of ['foods','foodDays','foodTemplates']) if(!Array.isArray(obj.data[key])) obj.data[key]=[];
+  for(const key of ['foods','foodDays','foodTemplates','exercises']) if(!Array.isArray(obj.data[key])) obj.data[key]=[];
   return obj;
 }
 async function importBackupFile(file){
@@ -348,6 +400,8 @@ async function importBackupFile(file){
     await putMany(STORE_FOODS,backup.data.foods);
     await putMany(STORE_FOOD_DAYS,backup.data.foodDays);
     await putMany(STORE_FOOD_TEMPLATES,backup.data.foodTemplates);
+    await putMany(STORE_EXERCISES,backup.data.exercises);
+    await refreshExerciseCatalogCache();
     if(msg) msg.textContent=`Importación completa: ${sCount} entrenamientos, ${mCount} mediciones y ${fCount} días de comida.`;
     alert('Respaldo restaurado.');
     render();
@@ -401,6 +455,7 @@ async function latestExerciseRecord(name){
 function setView(view){
   currentView=view;
   if(view==='food'){ foodScreen='main'; }
+  if(view==='train'){ trainScreen='main'; exerciseEditorId=null; }
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
   document.getElementById('bottomNav').classList.remove('hide');
   render();
@@ -408,7 +463,7 @@ function setView(view){
 async function render(){
   const app=document.getElementById('app');
   if(currentView==='home') app.innerHTML=await homeHTML();
-  if(currentView==='train') app.innerHTML=trainHTML();
+  if(currentView==='train') app.innerHTML=await trainHTML();
   if(currentView==='measure') app.innerHTML=await measureHTML();
   if(currentView==='history') app.innerHTML=await historyHTML();
   if(currentView==='progress') app.innerHTML=await progressHTML();
@@ -526,7 +581,7 @@ async function homeHTML(){
         </section>
         <section class="card sheet-card">
           <div class="subtle">Respaldo</div><h4 style="margin:6px 0 8px;font-size:20px">Importar y exportar</h4>
-          <p class="subtle" style="margin-top:0">Guarda o restaura entrenamientos, mediciones, alimentos, objetivos y registros de comida.</p>
+          <p class="subtle" style="margin-top:0">Guarda o restaura entrenamientos, ejercicios, mediciones, alimentos, objetivos y registros de comida.</p>
           <div class="backup-actions"><button class="btn primary" data-action="export-backup">Exportar respaldo</button><button class="btn ghost" data-action="import-backup">Importar respaldo</button></div>
           <input id="backupFileInput" class="hide" type="file" accept="application/json,.json"><div id="backupMessage" class="subtle" style="margin-top:10px"></div>
         </section>
@@ -536,17 +591,73 @@ async function homeHTML(){
   </main>`;
 }
 
-function trainHTML(){
+async function trainHTML(){
+  if(trainScreen==='catalog') return exerciseCatalogHTML();
+  if(trainScreen==='editor') return exerciseEditorHTML();
   const draft=loadWorkoutDraft();
   return `<main class="screen section-screen train-screen">
     <div class="section-app-header train-header">
       <div><span class="dashboard-kicker">Rutina semanal</span><h1>Entrenar</h1></div>
-      <div class="train-header-actions"><button class="btn ghost compact" data-train-history>Historial</button><div class="section-symbol"><svg viewBox="0 0 24 24"><path d="M5 8v8M8 6v12M16 6v12M19 8v8M8 12h8M3 10v4M21 10v4"/></svg></div></div>
+      <div class="train-header-actions"><button class="btn ghost compact" data-open-exercise-catalog>Ejercicios</button><button class="btn ghost compact" data-train-history>Historial</button><div class="section-symbol"><svg viewBox="0 0 24 24"><path d="M5 8v8M8 6v12M16 6v12M19 8v8M8 12h8M3 10v4M21 10v4"/></svg></div></div>
     </div>
     ${draft?`<section class="card resume-workout-card"><div><span class="section-kicker">Entrenamiento en curso</span><h3>${esc(draft.routine)}</h3></div><button class="btn primary" data-resume-workout>Continuar</button></section>`:''}
     <div class="routine-grid routine-grid-v9">${Object.keys(ROUTINES).map((n,i)=>`<button class="routine-btn routine-v9 routine-tone-${i+1}" data-routine="${esc(n)}"><span class="routine-index">0${i+1}</span><div><strong>${esc(n)}</strong><small>${ROUTINES[n].length} ejercicios</small></div><span class="card-arrow">→</span></button>`).join('')}</div>
-    
   </main>`;
+}
+
+async function exerciseCatalogHTML(){
+  document.getElementById('bottomNav').classList.remove('hide');
+  await refreshExerciseCatalogCache();
+  const exercises=exerciseCatalog();
+  return `<main class="screen section-screen exercise-catalog-screen">
+    <div class="topbar"><button class="btn ghost" data-exercise-catalog-back>← Entrenar</button><div style="text-align:right"><div class="subtle">Biblioteca</div><h1>Ejercicios</h1></div></div>
+    <div class="row between catalog-actions"><div class="subtle">Da de alta aquí tus ejercicios. En el entrenamiento solo tendrás que seleccionarlos.</div><button class="btn primary" data-new-exercise>+ Nuevo</button></div>
+    <div class="field exercise-search-field"><label>Buscar</label><input id="exerciseCatalogSearch" type="search" placeholder="Press, remo, curl…"></div>
+    <div id="exerciseCatalogList" class="list exercise-catalog-list">${exercises.map(ex=>exerciseCatalogItemHTML(ex)).join('')||'<div class="empty">Todavía no hay ejercicios registrados.</div>'}</div>
+  </main>`;
+}
+function exerciseCatalogItemHTML(ex){
+  const details=[ex.group||'Otro',ex.unit||'kg',`${Math.max(1,+ex.setCount||2)} series`,ex.splitSides?'I/D':''].filter(Boolean).join(' · ');
+  return `<button class="list-item exercise-catalog-item" data-edit-exercise="${esc(ex.id)}" data-exercise-search="${esc(`${ex.name} ${ex.group||''}`.toLowerCase())}"><div class="row between"><strong>${esc(ex.name)}</strong><span class="card-arrow">›</span></div><span class="subtle">${esc(details)}</span></button>`;
+}
+async function exerciseEditorHTML(){
+  document.getElementById('bottomNav').classList.add('hide');
+  const existing=exerciseEditorId?await getOne(STORE_EXERCISES,exerciseEditorId):null;
+  const ex=existing||{id:'',name:'',group:'',unit:'kg',setCount:3,splitSides:false};
+  const groups=[...new Set(exerciseCatalog().map(x=>x.group).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  return `<main class="screen section-screen exercise-editor-screen">
+    <div class="topbar"><button class="btn ghost" data-exercise-editor-back>← Ejercicios</button><div style="text-align:right"><div class="subtle">${existing?'Editar':'Nuevo'} ejercicio</div><h1>${existing?esc(ex.name):'Ejercicio'}</h1></div></div>
+    <form id="exerciseEditorForm" class="card">
+      <div class="field"><label>Nombre</label><input name="name" value="${esc(ex.name)}" placeholder="Ej. Curl martillo" required></div>
+      <div class="field"><label>Zona muscular</label><input name="group" list="exerciseEditorGroups" value="${esc(ex.group||'')}" placeholder="Ej. Bíceps" required><datalist id="exerciseEditorGroups">${groups.map(g=>`<option value="${esc(g)}"></option>`).join('')}</datalist></div>
+      <div class="form-grid"><div class="field"><label>Unidad</label><select name="unit"><option value="kg" ${ex.unit==='kg'?'selected':''}>kg</option><option value="lb" ${ex.unit==='lb'?'selected':''}>lb</option></select></div><div class="field"><label>Series por defecto</label><input name="setCount" type="number" inputmode="numeric" min="1" max="12" step="1" value="${Math.max(1,+ex.setCount||3)}" required></div></div>
+      <label class="check-row"><input name="splitSides" type="checkbox" ${ex.splitSides?'checked':''}> Registrar repeticiones izquierda y derecha</label>
+      <button class="btn primary block" type="submit">Guardar ejercicio</button>
+      ${existing?`<button class="btn danger block" type="button" data-delete-exercise style="margin-top:10px">Eliminar del catálogo</button>`:''}
+    </form>
+  </main>`;
+}
+async function saveExerciseEditor(form){
+  const fd=new FormData(form);
+  const name=String(fd.get('name')||'').trim();
+  const group=String(fd.get('group')||'').trim()||'Otro';
+  if(!name) return;
+  const all=await getAll(STORE_EXERCISES);
+  const duplicate=all.find(x=>x.id!==exerciseEditorId && String(x.name||'').trim().toLowerCase()===name.toLowerCase());
+  if(duplicate){alert('Ya existe un ejercicio con ese nombre.');return;}
+  const existing=exerciseEditorId?await getOne(STORE_EXERCISES,exerciseEditorId):null;
+  const obj={
+    id:existing?.id||uid('exercise'),name,sourceName:existing?.sourceName||name,group,
+    unit:String(fd.get('unit')||'kg'),setCount:Math.max(1,Math.min(12,+fd.get('setCount')||3)),
+    splitSides:fd.get('splitSides')==='on',createdAt:existing?.createdAt||Date.now(),updatedAt:Date.now()
+  };
+  await put(STORE_EXERCISES,obj);
+  await refreshExerciseCatalogCache();
+  exerciseEditorId=null; trainScreen='catalog'; await render();
+}
+function filterExerciseCatalog(){
+  const q=(document.getElementById('exerciseCatalogSearch')?.value||'').trim().toLowerCase();
+  document.querySelectorAll('[data-exercise-search]').forEach(el=>el.classList.toggle('hide',!!q && !String(el.dataset.exerciseSearch||'').includes(q)));
 }
 
 function loadWorkoutDraft(){
@@ -604,13 +715,17 @@ async function buildExerciseDraft(exName,meta,originalName=null){
     st.n=i+1;
     return st;
   });
-  return {name:exName,originalName:originalName||exName,defaultUnit,seed:meta.seed,previous:prev?formatPrevious(prev):meta.seed,prevRecord:prev?{date:prev.session.date,sets:clone(prev.exercise.sets||[]),splitSides:!!prev.exercise.splitSides}:null,group:meta.group||prevEx?.group||EXERCISE_META[exName]?.group||'Otro',custom:!!meta.custom,splitSides:!!prevEx?.splitSides,sets,feeling:'',notes:''};
+  return {name:exName,originalName:originalName||exName,defaultUnit,seed:meta.seed,previous:prev?formatPrevious(prev):meta.seed,prevRecord:prev?{date:prev.session.date,sets:clone(prev.exercise.sets||[]),splitSides:!!prev.exercise.splitSides}:null,group:meta.group||prevEx?.group||EXERCISE_META[exName]?.group||'Otro',custom:!!meta.custom,splitSides:prevEx?!!prevEx.splitSides:!!meta.splitSides,sets,feeling:'',notes:''};
 }
 async function startRoutine(name){
   const existing=loadWorkoutDraft();
   if(existing && !confirm('Ya tienes un entrenamiento en curso. ¿Descartarlo y empezar otro?')){ activeSessionDraft=existing; renderWorkout(); return; }
   const exercises=[];
-  for(const [exName,unit,setCount,seed] of ROUTINES[name]) exercises.push(await buildExerciseDraft(exName,{name:exName,unit,setCount,seed,group:EXERCISE_META[exName]?.group||'Otro'}));
+  for(const [sourceName,unit,setCount,seed] of ROUTINES[name]){
+    const catalogMeta=catalogExerciseForSource(sourceName);
+    const meta=catalogMeta?{...catalogMeta,seed:catalogMeta.seed||seed}:{name:sourceName,sourceName,unit,setCount,seed,group:EXERCISE_META[sourceName]?.group||'Otro',splitSides:false};
+    exercises.push(await buildExerciseDraft(meta.name||sourceName,meta));
+  }
   activeSessionDraft={id:uid('session'),date:today(),routine:name,createdAt:Date.now(),overallFeeling:'',notes:'',cardio:{minutes:'',heartRate:'',incline:'',speed:''},exercises};
   persistWorkoutDraft();
   renderWorkout();
@@ -662,13 +777,13 @@ function cycleUnit(current){ return current==='kg'?'lb':'kg'; }
 function timerRemainingSeconds(){ return restTimerEndAt?Math.max(0,Math.ceil((restTimerEndAt-Date.now())/1000)):180; }
 function timerLabel(){ const sec=timerRemainingSeconds(); const m=Math.floor(sec/60),s=sec%60; return `${m}:${String(s).padStart(2,'0')}`; }
 function syncWorkoutFloatingToolsViewport(){
-  const tools=document.querySelector('.workout-floating-tools');
-  if(!tools) return;
   const vv=window.visualViewport;
   const offsetTop=vv?Math.max(0,vv.offsetTop||0):0;
   const offsetRight=vv?Math.max(0,(window.innerWidth-(vv.offsetLeft||0)-vv.width)):0;
-  tools.style.setProperty('--workout-vv-top',`${offsetTop}px`);
-  tools.style.setProperty('--workout-vv-right',`${offsetRight}px`);
+  const offsetBottom=vv?Math.max(0,window.innerHeight-vv.height-(vv.offsetTop||0)):0;
+  document.documentElement.style.setProperty('--workout-vv-top',`${offsetTop}px`);
+  document.documentElement.style.setProperty('--workout-vv-right',`${offsetRight}px`);
+  document.documentElement.style.setProperty('--workout-vv-bottom',`${offsetBottom}px`);
 }
 function ensureTimerInterval(){
   clearInterval(restTimerInterval);
@@ -676,13 +791,19 @@ function ensureTimerInterval(){
   updateRestTimerUI();
 }
 function updateRestTimerUI(){
-  const el=document.querySelector('[data-rest-timer-display]');
-  if(el) el.textContent=restTimerEndAt?timerLabel():'3:00';
-  const big=document.querySelector('[data-timer-big]');
-  if(big) big.textContent=restTimerEndAt?timerLabel():'3:00';
   if(restTimerEndAt && Date.now()>=restTimerEndAt){
     restTimerEndAt=0; localStorage.removeItem(REST_TIMER_KEY);
     if(!restTimerAlarmed){ restTimerAlarmed=true; playRestAlarm(); }
+  }
+  const running=!!restTimerEndAt;
+  const el=document.querySelector('[data-rest-timer-display]');
+  if(el) el.textContent=running?timerLabel():'3:00';
+  const big=document.querySelector('[data-timer-big]');
+  if(big) big.textContent=running?timerLabel():'3:00';
+  const btn=document.querySelector('[data-rest-timer]');
+  if(btn){
+    btn.classList.toggle('timer-running',running);
+    btn.setAttribute('aria-label',running?'Detener temporizador de descanso':'Iniciar temporizador de descanso');
   }
 }
 function activateWorkoutAudio(){
@@ -711,6 +832,10 @@ function startRestTimer(){
   activateWorkoutAudio(); restTimerAlarmed=false; restTimerEndAt=Date.now()+180000; localStorage.setItem(REST_TIMER_KEY,String(restTimerEndAt)); document.querySelector('[data-rest-timer]')?.classList.remove('timer-done'); ensureTimerInterval(); closeWorkoutSheet();
 }
 function stopRestTimer(){ restTimerEndAt=0; restTimerAlarmed=false; localStorage.removeItem(REST_TIMER_KEY); updateRestTimerUI(); closeWorkoutSheet(); }
+function toggleRestTimer(){
+  if(restTimerEndAt && Date.now()<restTimerEndAt) stopRestTimer();
+  else startRestTimer();
+}
 function renderWorkout(){
   const s=activeSessionDraft; if(!s) return;
   s.cardio=s.cardio||{minutes:'',heartRate:'',incline:'',speed:''};
@@ -721,13 +846,13 @@ function renderWorkout(){
       <button class="workout-tool-btn" data-open-calculator aria-label="Calculadora de unidades"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M8 7h8M8 11h2M14 11h2M8 15h2M14 15h2M8 18h2M14 18h2"/></svg></button>
       <button class="workout-tool-btn timer-tool" data-rest-timer aria-label="Temporizador de descanso"><span>⏱</span><b data-rest-timer-display>${restTimerEndAt?timerLabel():'3:00'}</b></button>
     </div>
+    <button class="workout-floating-add" data-add-exercise aria-label="Agregar ejercicio en esta parte del entrenamiento"><span>＋</span><b>Ejercicio</b></button>
     <div class="topbar workout-topbar"><button class="btn ghost workout-exit" data-action="close-workout" aria-label="Salir">←</button><div class="workout-title"><h1>${esc(s.routine)}</h1></div></div>
     <section class="workout-overview">
       <div class="row between"><div><span class="subtle">Progreso</span><strong>${pct}%</strong></div><div class="workout-count">${s.exercises.filter(exerciseHasData).length} / ${s.exercises.length} ejercicios</div></div>
       <div class="progressbar"><div style="width:${pct}%"></div></div>
     </section>
     <div id="exerciseList">${s.exercises.map((e,i)=>exerciseHTML(e,i)).join('')}</div>
-    <button class="btn ghost block add-exercise-btn" data-add-exercise>+ Agregar ejercicio</button>
     <section class="card cardio-card"><div class="section-kicker">Final</div><h3>Cardio</h3><div class="cardio-grid"><div class="field"><label>Minutos</label><input inputmode="numeric" type="number" min="0" step="1" value="${esc(s.cardio.minutes)}" data-cardio="minutes"></div><div class="field"><label>Ritmo cardiaco (bpm)</label><input inputmode="numeric" type="number" min="0" step="1" value="${esc(s.cardio.heartRate)}" data-cardio="heartRate"></div><div class="field"><label>Inclinación</label><input inputmode="decimal" type="number" min="0" step="0.1" value="${esc(s.cardio.incline)}" data-cardio="incline"></div><div class="field"><label>Velocidad</label><input inputmode="decimal" type="number" min="0" step="0.1" value="${esc(s.cardio.speed)}" data-cardio="speed"></div></div></section>
     <section class="card session-card"><div class="section-kicker">Cierre</div><h3>Sesión</h3><div class="field feeling-field"><label>Sensación general</label>${feelingPickerHTML(SESSION_FEELINGS,s.overallFeeling,'data-overall-feeling-choice')}</div><div class="field"><label>Notas generales</label><textarea id="sessionNotes" placeholder="Resumen del entrenamiento…">${esc(s.notes)}</textarea></div></section>
     <div class="save-actions"><button class="btn primary block save-workout-btn" data-action="save-session">Guardar entrenamiento</button></div>
@@ -743,6 +868,7 @@ function exerciseHTML(e,i){
     <div class="exercise-head">
       <div class="exercise-number">${i+1}</div>
       <button class="exercise-title-button ${alts.length?'can-swap':''}" data-change-exercise="${i}" ${alts.length?'':'disabled'}><span class="exercise-title-wrap"><h3>${esc(e.name)}</h3>${group?`<div class="muscle-tag">${esc(group)}</div>`:''}</span>${alts.length?'<span class="swap-chevron">›</span>':''}</button>
+      <div class="exercise-order-controls" aria-label="Cambiar orden"><button type="button" data-move-exercise-up="${i}" ${i===0?'disabled':''} aria-label="Subir ejercicio">↑</button><button type="button" data-move-exercise-down="${i}" ${i===activeSessionDraft.exercises.length-1?'disabled':''} aria-label="Bajar ejercicio">↓</button></div>
     </div>
     ${e.splitSides?`<div class="set-head workout-set-head split"><span></span><span>Peso</span><span>Un</span><span>Reps I</span><span>Reps D</span><span>RIR</span><span></span></div>`:`<div class="set-head workout-set-head"><span></span><span>Peso</span><span>Un</span><span>Reps</span><span>RIR</span><span></span></div>`}
     <div class="sets">${e.sets.map((st,j)=>setRowHTML(st,i,j,e.splitSides,e)).join('')}</div>
@@ -795,10 +921,12 @@ function bindWorkoutEvents(){
   document.querySelectorAll('[data-remove-set]').forEach(b=>b.addEventListener('click',()=>{const [ei,si]=b.dataset.removeSet.split(':').map(Number);const e=activeSessionDraft.exercises[ei];if(e.sets.length===1)return;e.sets.splice(si,1);e.sets.forEach((x,n)=>x.n=n+1);persistWorkoutDraft();renderWorkout();}));
   document.querySelectorAll('[data-toggle-sides]').forEach(b=>b.addEventListener('click',()=>toggleExerciseSides(+b.dataset.toggleSides)));
   document.querySelectorAll('[data-change-exercise]').forEach(b=>b.addEventListener('click',()=>openExerciseSwapSheet(+b.dataset.changeExercise)));
-  document.querySelector('[data-add-exercise]')?.addEventListener('click',openAddExerciseSheet);
+  document.querySelectorAll('[data-move-exercise-up]').forEach(b=>b.addEventListener('click',()=>moveExercise(+b.dataset.moveExerciseUp,-1)));
+  document.querySelectorAll('[data-move-exercise-down]').forEach(b=>b.addEventListener('click',()=>moveExercise(+b.dataset.moveExerciseDown,1)));
+  document.querySelector('[data-add-exercise]')?.addEventListener('click',()=>{pendingExerciseInsertIndex=getVisibleExerciseInsertIndex();openAddExerciseSheet();});
   document.querySelectorAll('[data-remove-exercise]').forEach(b=>b.addEventListener('click',()=>removeCustomExercise(+b.dataset.removeExercise)));
   document.querySelector('[data-open-calculator]')?.addEventListener('click',openCalculatorSheet);
-  document.querySelector('[data-rest-timer]')?.addEventListener('click',startRestTimer);
+  document.querySelector('[data-rest-timer]')?.addEventListener('click',toggleRestTimer);
   document.querySelector('[data-action="save-session"]')?.addEventListener('click',saveSession);
 }
 function toggleExerciseSides(index){
@@ -822,18 +950,59 @@ async function swapExerciseTo(index,newName){
   const current=activeSessionDraft.exercises[index]; const hasData=exerciseHasData(current)||current.feeling||current.notes;
   if(hasData && !confirm('Este ejercicio ya tiene datos. ¿Cambiarlo y reemplazar lo registrado en este ejercicio?')) return;
   const meta=exerciseCatalog().find(x=>x.name===newName); if(!meta)return;
-  activeSessionDraft.exercises[index]=await buildExerciseDraft(newName,meta,current.originalName||current.name); persistWorkoutDraft(); renderWorkout();
+  const replacement=await buildExerciseDraft(newName,meta,current.originalName||current.name); replacement.custom=!!current.custom; activeSessionDraft.exercises[index]=replacement; persistWorkoutDraft(); renderWorkout();
+}
+function getVisibleExerciseInsertIndex(){
+  const cards=[...document.querySelectorAll('.exercise[data-ex]')];
+  if(!cards.length) return activeSessionDraft?.exercises?.length||0;
+  const vv=window.visualViewport;
+  const center=(vv?.offsetTop||0)+(vv?.height||window.innerHeight)*0.48;
+  let best=cards[0],bestDist=Infinity;
+  for(const card of cards){
+    const r=card.getBoundingClientRect();
+    if(r.top<=center && r.bottom>=center){best=card;bestDist=0;break;}
+    const cardCenter=(r.top+r.bottom)/2;
+    const dist=Math.abs(cardCenter-center);
+    if(dist<bestDist){best=card;bestDist=dist;}
+  }
+  return Math.min(activeSessionDraft.exercises.length,(+best.dataset.ex||0)+1);
+}
+function moveExercise(index,delta){
+  const list=activeSessionDraft?.exercises;
+  if(!list) return;
+  const target=index+delta;
+  if(target<0 || target>=list.length) return;
+  [list[index],list[target]]=[list[target],list[index]];
+  persistWorkoutDraft();
+  renderWorkout();
+  requestAnimationFrame(()=>document.querySelector(`.exercise[data-ex="${target}"]`)?.scrollIntoView({block:'center',behavior:'smooth'}));
 }
 async function openAddExerciseSheet(){
   const host=document.getElementById('workoutSheetHost'); if(!host)return;
-  const sessions=await getAll(STORE_SESSIONS);
-  const known=new Map(exerciseCatalog().map(x=>[x.name,x]));
-  for(const s of sessions) for(const e of s.exercises||[]) if(!known.has(e.name)) known.set(e.name,{name:e.name,unit:e.defaultUnit||e.sets?.[0]?.unit||'lb',setCount:e.sets?.length||2,seed:'Último registro disponible',group:e.group||'Otro'});
-  const groups=[...new Set([...known.values()].map(x=>x.group).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
-  host.innerHTML=`<div class="workout-sheet-backdrop" data-close-workout-sheet><div class="workout-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Sesión actual</span><h3>Agregar ejercicio</h3></div><button class="icon-btn icon-square" data-close-workout-sheet>✕</button></div><form id="addExerciseForm"><div class="field"><label>Ejercicio</label><input name="name" list="knownExerciseList" placeholder="Ej. Martillo sentado con apoyo" required><datalist id="knownExerciseList">${[...known.values()].sort((a,b)=>a.name.localeCompare(b.name,'es')).map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></div><div class="field"><label>Zona muscular</label><input name="group" list="exerciseGroupList" placeholder="Ej. Bíceps" required><datalist id="exerciseGroupList">${groups.map(g=>`<option value="${esc(g)}"></option>`).join('')}</datalist></div><div class="form-grid"><div class="field"><label>Unidad</label><select name="unit"><option>lb</option><option>kg</option></select></div><div class="field"><label>Series</label><input name="sets" type="number" min="1" max="10" step="1" value="2"></div></div><label class="check-row"><input name="splitSides" type="checkbox"> Registrar izquierda y derecha por separado</label><button class="btn primary block" type="submit">Agregar a la sesión</button></form></div></div>`;
+  await refreshExerciseCatalogCache();
+  const currentNames=new Set((activeSessionDraft.exercises||[]).map(e=>String(e.name||'').toLowerCase()));
+  const available=exerciseCatalog().filter(ex=>!currentNames.has(String(ex.name||'').toLowerCase()));
+  const insertAt=Math.max(0,Math.min(activeSessionDraft.exercises.length,pendingExerciseInsertIndex??activeSessionDraft.exercises.length));
+  const anchor=insertAt>0?activeSessionDraft.exercises[insertAt-1]?.name:'';
+  host.innerHTML=`<div class="workout-sheet-backdrop" data-close-workout-sheet><div class="workout-sheet exercise-picker-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">${anchor?`Después de ${esc(anchor)}`:'Inicio de la sesión'}</span><h3>Agregar ejercicio</h3></div><button class="icon-btn icon-square" data-close-workout-sheet>✕</button></div><div class="field"><label>Buscar</label><input id="workoutExerciseSearch" type="search" placeholder="Press, remo, curl…"></div><div class="swap-option-list exercise-picker-list">${available.map(ex=>`<button class="swap-option workout-exercise-option" data-add-catalog-exercise="${esc(ex.id)}" data-exercise-name="${esc(`${ex.name} ${ex.group||''}`.toLowerCase())}"><span>${esc(ex.name)}</span><small>${esc(ex.group||'Otro')} · ${esc(ex.unit||'kg')} · ${Math.max(1,+ex.setCount||2)} series${ex.splitSides?' · I/D':''}</small><b>＋</b></button>`).join('')||'<div class="empty">Todos los ejercicios del catálogo ya están en esta sesión.</div>'}</div></div></div>`;
   host.querySelectorAll('[data-close-workout-sheet]').forEach(x=>x.addEventListener('click',closeWorkoutSheet));
-  document.getElementById('addExerciseForm')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);const name=String(fd.get('name')||'').trim();if(!name)return;const knownMeta=known.get(name);const meta={name,unit:String(fd.get('unit')||knownMeta?.unit||'lb'),setCount:Math.max(1,+fd.get('sets')||knownMeta?.setCount||2),seed:'Sin registro previo',group:String(fd.get('group')||knownMeta?.group||'Otro').trim()||'Otro',custom:!exerciseCatalog().some(x=>x.name===name)};const draft=await buildExerciseDraft(name,meta);draft.custom=meta.custom;draft.group=meta.group;if(fd.get('splitSides')==='on')draft.splitSides=true;activeSessionDraft.exercises.push(draft);persistWorkoutDraft();renderWorkout();});
+  const search=document.getElementById('workoutExerciseSearch');
+  search?.addEventListener('input',()=>{const q=search.value.trim().toLowerCase();host.querySelectorAll('[data-exercise-name]').forEach(el=>el.classList.toggle('hide',!!q && !String(el.dataset.exerciseName||'').includes(q)));});
+  host.querySelectorAll('[data-add-catalog-exercise]').forEach(btn=>btn.addEventListener('click',()=>addCatalogExerciseToWorkout(btn.dataset.addCatalogExercise,insertAt)));
 }
+async function addCatalogExerciseToWorkout(id,insertAt){
+  const meta=exerciseCatalog().find(x=>x.id===id) || await getOne(STORE_EXERCISES,id);
+  if(!meta) return;
+  const draft=await buildExerciseDraft(meta.name,{...meta,seed:'Sin registro previo',custom:true});
+  draft.custom=true;
+  const at=Math.max(0,Math.min(activeSessionDraft.exercises.length,insertAt));
+  activeSessionDraft.exercises.splice(at,0,draft);
+  pendingExerciseInsertIndex=null;
+  persistWorkoutDraft();
+  renderWorkout();
+  requestAnimationFrame(()=>document.querySelector(`.exercise[data-ex="${at}"]`)?.scrollIntoView({block:'center',behavior:'smooth'}));
+}
+
 function removeCustomExercise(index){
   const e=activeSessionDraft.exercises[index]; if(!e?.custom)return;
   if(exerciseHasData(e) && !confirm('Este ejercicio ya tiene datos. ¿Eliminarlo de la sesión?')) return;
@@ -1189,7 +1358,7 @@ function mealHTML(meal,mi){
 }
 function openCheatMealSheet(mi){
   const host=document.getElementById('foodSheetHost'); if(!host)return;
-  host.innerHTML=`<div class="workout-sheet-backdrop food-sheet-backdrop" data-close-food-sheet><div class="workout-sheet food-entry-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Comida libre</span><h3>Registrar aproximado</h3></div><button class="icon-btn icon-square" data-close-food-sheet>✕</button></div><form id="cheatMealForm"><div class="field"><label>Qué comiste</label><input name="name" placeholder="Ej. 2 dogos de fiesta" required></div><div class="field"><label>Cantidad / detalles</label><textarea name="detail" placeholder="Ej. 2 piezas, poco chorizo, cebolla, queso y aderezo"></textarea></div><div class="field"><label>Calorías estimadas</label><input name="kcal" type="number" min="0" step="1" required></div><div class="form-grid"><div class="field"><label>Proteína estimada (g)</label><input name="protein" type="number" min="0" step="0.1" value="0"></div><div class="field"><label>Grasa estimada (g)</label><input name="fat" type="number" min="0" step="0.1" value="0"></div><div class="field"><label>Carbohidratos estimados (g)</label><input name="carbs" type="number" min="0" step="0.1" value="0"></div></div><div class="notice warn">Puedes usar una estimación aproximada. Si solo conoces las calorías, deja los macros en 0 y al menos el total calórico quedará contabilizado.</div><button class="btn primary block" type="submit" style="margin-top:12px">Agregar comida libre</button></form></div></div>`;
+  host.innerHTML=`<div class="workout-sheet-backdrop food-sheet-backdrop" data-close-food-sheet><div class="workout-sheet food-entry-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Comida libre</span><h3>Registrar aproximado</h3></div><button class="icon-btn icon-square" data-close-food-sheet>✕</button></div><form id="cheatMealForm"><div class="field"><label>Qué comiste</label><input name="name" placeholder="Ej. 2 dogos de fiesta" required></div><div class="field"><label>Cantidad / detalles</label><textarea name="detail" placeholder="Ej. 2 piezas, poco chorizo, cebolla, queso y aderezo"></textarea></div><div class="field"><label>Calorías estimadas</label><input name="kcal" type="number" inputmode="numeric" min="0" step="1" required></div><div class="form-grid"><div class="field"><label>Proteína estimada (g)</label><input name="protein" type="number" inputmode="decimal" min="0" step="0.1" value="0"></div><div class="field"><label>Grasa estimada (g)</label><input name="fat" type="number" inputmode="decimal" min="0" step="0.1" value="0"></div><div class="field"><label>Carbohidratos estimados (g)</label><input name="carbs" type="number" inputmode="decimal" min="0" step="0.1" value="0"></div></div><div class="notice warn">Puedes usar una estimación aproximada. Si solo conoces las calorías, deja los macros en 0 y al menos el total calórico quedará contabilizado.</div><button class="btn primary block" type="submit" style="margin-top:12px">Agregar comida libre</button></form></div></div>`;
   host.querySelectorAll('[data-close-food-sheet]').forEach(x=>x.addEventListener('click',()=>host.innerHTML=''));
   const cheatForm=document.getElementById('cheatMealForm');
   cheatForm?.addEventListener('focusin',e=>{if(e.target.matches('input,textarea'))setTimeout(()=>e.target.scrollIntoView({block:'center',behavior:'smooth'}),250);});
@@ -1215,7 +1384,7 @@ async function foodGoalHTML(){
       <input type="hidden" name="fatPerKg" value="${+goal.fatPerKg||DEFAULT_NUTRITION.fatPerKg}">
       <div class="nutrition-controls">
         <div class="field"><label>Actividad</label><select name="activity"><option value="1.2" ${+goal.activity===1.2?'selected':''}>Sedentario (1.2)</option><option value="1.375" ${+goal.activity===1.375?'selected':''}>Poca actividad (1.375)</option><option value="1.55" ${+goal.activity===1.55?'selected':''}>Moderada (1.55)</option><option value="1.725" ${+goal.activity===1.725?'selected':''}>Muy activo (1.725)</option><option value="1.9" ${+goal.activity===1.9?'selected':''}>Muy activo + trabajo físico (1.9)</option></select></div>
-        <div class="field"><label>Déficit (%)</label><input name="deficit" type="number" step="1" min="0" max="50" value="${+goal.deficit||20}"></div>
+        <div class="field"><label>Déficit (%)</label><input name="deficit" type="number" inputmode="numeric" step="1" min="0" max="50" value="${+goal.deficit||20}"></div>
       </div>
       <div id="goalPreview" class="goal-preview"></div>
     </form>
@@ -1228,7 +1397,7 @@ async function foodPickerHTML(){
     const f=await getOne(STORE_FOODS,foodPickerFoodId); if(!f){foodPickerFoodId=null;return foodPickerHTML();}
     return `<main class="screen"><div class="topbar"><button class="btn ghost" data-food-picker-back>← Alimentos</button><div style="text-align:right"><div class="subtle">${esc(meal.name)}</div><h1>${esc(f.name)}</h1></div></div>
       <section class="card"><div class="subtle">Referencia: ${round(+f.baseQty,2)} ${esc(f.unit)} · ${f.configured?`${round(+f.kcal)} kcal · P ${round(+f.protein)} · G ${round(+f.fat)} · C ${round(+f.carbs)}`:'Sin macros configurados'}</div>
-      ${f.configured?`<form id="addFoodForm"><div class="field"><label>Cantidad (${esc(f.unit)})</label><input id="foodQtyInput" name="qty" type="number" step="0.01" min="0.01" value="${+f.baseQty||1}" required></div><button class="btn primary block" type="submit">Agregar a ${esc(meal.name)}</button></form>`:`<div class="notice warn" style="margin-top:12px">Primero configura la información nutrimental de este alimento.</div><button class="btn primary block" data-configure-picker-food style="margin-top:12px">Configurar alimento</button>`}
+      ${f.configured?`<form id="addFoodForm"><div class="field"><label>Cantidad (${esc(f.unit)})</label><input id="foodQtyInput" name="qty" type="number" inputmode="decimal" step="0.01" min="0.01" value="${+f.baseQty||1}" required></div><button class="btn primary block" type="submit">Agregar a ${esc(meal.name)}</button></form>`:`<div class="notice warn" style="margin-top:12px">Primero configura la información nutrimental de este alimento.</div><button class="btn primary block" data-configure-picker-food style="margin-top:12px">Configurar alimento</button>`}
       </section></main>`;
   }
   const foods=(await getAll(STORE_FOODS)).sort((a,b)=>(b.favorite-a.favorite)||a.name.localeCompare(b.name,'es'));
@@ -1251,8 +1420,8 @@ async function foodEditorHTML(){
   const f=existing||{id:'',name:'',brand:'',baseQty:100,unit:'g',kcal:'',protein:'',fat:'',carbs:'',favorite:true,configured:false};
   return `<main class="screen"><div class="topbar"><button class="btn ghost" data-food-editor-back>← Volver</button><div style="text-align:right"><div class="subtle">${existing?'Editar':'Nuevo'} alimento</div><h1>${existing?esc(f.name):'Alimento'}</h1></div></div>
     <form id="foodEditorForm" class="card"><div class="field"><label>Nombre</label><input name="name" value="${esc(f.name)}" required></div><div class="field"><label>Marca (opcional)</label><input name="brand" value="${esc(f.brand||'')}"></div>
-      <div class="form-grid"><div class="field"><label>Cantidad de referencia</label><input name="baseQty" type="number" step="0.01" min="0.01" value="${esc(f.baseQty)}" required></div><div class="field"><label>Unidad</label><select name="unit">${FOOD_UNITS.map(u=>`<option ${f.unit===u?'selected':''}>${u}</option>`).join('')}</select></div></div>
-      <div class="subtle">Valores nutrimentales para esa cantidad de referencia:</div><div class="form-grid"><div class="field"><label>Calorías</label><input name="kcal" type="number" step="0.1" min="0" value="${esc(f.kcal)}" required></div><div class="field"><label>Proteína (g)</label><input name="protein" type="number" step="0.1" min="0" value="${esc(f.protein)}" required></div><div class="field"><label>Grasa (g)</label><input name="fat" type="number" step="0.1" min="0" value="${esc(f.fat)}" required></div><div class="field"><label>Carbohidratos (g)</label><input name="carbs" type="number" step="0.1" min="0" value="${esc(f.carbs)}" required></div></div>
+      <div class="form-grid"><div class="field"><label>Cantidad de referencia</label><input name="baseQty" type="number" inputmode="decimal" step="0.01" min="0.01" value="${esc(f.baseQty)}" required></div><div class="field"><label>Unidad</label><select name="unit">${FOOD_UNITS.map(u=>`<option ${f.unit===u?'selected':''}>${u}</option>`).join('')}</select></div></div>
+      <div class="subtle">Valores nutrimentales para esa cantidad de referencia:</div><div class="form-grid"><div class="field"><label>Calorías</label><input name="kcal" type="number" inputmode="decimal" step="0.1" min="0" value="${esc(f.kcal)}" required></div><div class="field"><label>Proteína (g)</label><input name="protein" type="number" inputmode="decimal" step="0.1" min="0" value="${esc(f.protein)}" required></div><div class="field"><label>Grasa (g)</label><input name="fat" type="number" inputmode="decimal" step="0.1" min="0" value="${esc(f.fat)}" required></div><div class="field"><label>Carbohidratos (g)</label><input name="carbs" type="number" inputmode="decimal" step="0.1" min="0" value="${esc(f.carbs)}" required></div></div>
       <label class="check-row"><input name="favorite" type="checkbox" ${f.favorite?'checked':''}> Mostrar en favoritos</label>
       <button class="btn primary block" type="submit">Guardar alimento</button>${existing?`<button class="btn danger block" type="button" data-delete-food style="margin-top:10px">Eliminar alimento</button>`:''}
     </form>
@@ -1637,6 +1806,14 @@ function bindViewEvents(){
   document.querySelectorAll('[data-action="progress-now"]').forEach(b=>b.addEventListener('click',()=>setView('progress')));
   document.querySelector('[data-action="history"]')?.addEventListener('click',()=>{currentView='history';historyTab='sessions';render();});
   document.querySelector('[data-train-history]')?.addEventListener('click',()=>{currentView='history';historyTab='sessions';render();});
+  document.querySelector('[data-open-exercise-catalog]')?.addEventListener('click',()=>{trainScreen='catalog';exerciseEditorId=null;render();});
+  document.querySelector('[data-exercise-catalog-back]')?.addEventListener('click',()=>{trainScreen='main';exerciseEditorId=null;render();});
+  document.querySelector('[data-new-exercise]')?.addEventListener('click',()=>{exerciseEditorId=null;trainScreen='editor';render();});
+  document.querySelectorAll('[data-edit-exercise]').forEach(b=>b.addEventListener('click',()=>{exerciseEditorId=b.dataset.editExercise;trainScreen='editor';render();}));
+  document.getElementById('exerciseCatalogSearch')?.addEventListener('input',filterExerciseCatalog);
+  document.querySelector('[data-exercise-editor-back]')?.addEventListener('click',()=>{exerciseEditorId=null;trainScreen='catalog';document.getElementById('bottomNav').classList.remove('hide');render();});
+  document.getElementById('exerciseEditorForm')?.addEventListener('submit',e=>{e.preventDefault();saveExerciseEditor(e.currentTarget);});
+  document.querySelector('[data-delete-exercise]')?.addEventListener('click',async()=>{if(!exerciseEditorId)return;if(confirm('¿Eliminar este ejercicio del catálogo? Los entrenamientos anteriores conservarán sus datos.')){await del(STORE_EXERCISES,exerciseEditorId);await refreshExerciseCatalogCache();exerciseEditorId=null;trainScreen='catalog';document.getElementById('bottomNav').classList.remove('hide');render();}});
   document.querySelectorAll('[data-action="daily-report"]')?.forEach(b=>b.addEventListener('click',()=>shareDailyReport(b.dataset.reportDate||today(),false)));
   document.querySelector('[data-action="history-back"]')?.addEventListener('click',()=>setView('home'));
   const settingsSheet=document.getElementById('settingsSheet');
@@ -1676,8 +1853,8 @@ if(window.visualViewport){
 }
 window.addEventListener('resize',syncWorkoutFloatingToolsViewport);
 
-if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.17',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
-openDB().then(seedStarterFoods).then(async()=>{
+if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.18',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
+openDB().then(seedStarterFoods).then(seedStarterExercises).then(async()=>{
   activeSessionDraft=loadWorkoutDraft() || await loadWorkoutDraftDB();
   if(activeSessionDraft){persistWorkoutDraft();renderWorkout();} else await render();
 }).catch(err=>{document.getElementById('app').innerHTML=`<main class="screen"><div class="card"><h2>Error al abrir la base local</h2><p class="subtle">${esc(err.message)}</p></div></main>`;});

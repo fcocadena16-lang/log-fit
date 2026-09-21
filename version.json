@@ -1,6 +1,6 @@
 {
-  "version": "11.17",
-  "published": "2026-09-17",
+  "version": "11.18",
+  "published": "2026-09-20",
   "name": "Fit Log",
-  "notes": "Cardio: inclinación y velocidad se guardan como valores de referencia de la caminadora, sin asumir % ni km/h."
+  "notes": "Catálogo de ejercicios, reordenamiento con flechas, agregar ejercicio flotante en la posición actual, temporizador iniciar/detener con un toque y teclado numérico en cantidades de comida."
 }
