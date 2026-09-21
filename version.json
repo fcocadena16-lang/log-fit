@@ -1,6 +1,6 @@
 {
-  "version": "11.18",
+  "version": "11.19",
   "published": "2026-09-20",
   "name": "Fit Log",
-  "notes": "Catálogo de ejercicios, reordenamiento con flechas, agregar ejercicio flotante en la posición actual, temporizador iniciar/detener con un toque y teclado numérico en cantidades de comida."
+  "notes": "Integración Fit Log IA: análisis por fecha desde la app mediante el Worker privado de Cloudflare y OpenAI."
 }

@@ -1,6 +1,7 @@
 'use strict';
 
-const APP_VERSION = '11.18';
+const APP_VERSION = '11.19';
+const AI_WORKER_URL = 'https://fitlog-ai.fcocadena-16.workers.dev/';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
 
@@ -508,6 +509,9 @@ async function homeHTML(){
         <button class="icon-btn app-menu-btn app-share-btn" data-action="open-report-share" aria-label="Compartir reporte">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L8.5 6.5M12 3l3.5 3.5M6 10v8.5A2.5 2.5 0 0 0 8.5 21h7A2.5 2.5 0 0 0 18 18.5V10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
+        <button class="icon-btn app-menu-btn app-ai-btn" data-action="open-ai-analysis" aria-label="Analizar con IA">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l1.15 3.55a4.9 4.9 0 0 0 3.1 3.1L19.8 10.6l-3.55 1.15a4.9 4.9 0 0 0-3.1 3.1L12 18.4l-1.15-3.55a4.9 4.9 0 0 0-3.1-3.1L4.2 10.6l3.55-1.15a4.9 4.9 0 0 0 3.1-3.1L12 2.8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M19 3.5l.45 1.35a1.9 1.9 0 0 0 1.2 1.2L22 6.5l-1.35.45a1.9 1.9 0 0 0-1.2 1.2L19 9.5l-.45-1.35a1.9 1.9 0 0 0-1.2-1.2L16 6.5l1.35-.45a1.9 1.9 0 0 0 1.2-1.2L19 3.5Z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        </button>
         <button class="icon-btn app-menu-btn" data-action="open-settings" aria-label="Ajustes">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
         </button>
@@ -588,6 +592,7 @@ async function homeHTML(){
       </div>
     </div>
     <div id="reportShareHost"></div>
+    <div id="aiAnalysisHost"></div>
   </main>`;
 }
 
@@ -1797,6 +1802,183 @@ function openReportShareSheet(){
     await shareDailyReport(date,includeBody);
   });
 }
+
+function aiErrorMessage(error,status){
+  if(status===401) return 'La clave de OpenAI no es válida o ya venció. Revisa OPENAI_API_KEY en Cloudflare.';
+  if(status===403) return 'El servidor rechazó la solicitud. Revisa la configuración del Worker.';
+  if(status===429) return 'Se alcanzó temporalmente un límite de la API. Intenta de nuevo más tarde.';
+  const text=typeof error==='string'?error:(error?.message||error?.error?.message||'');
+  return text || 'No se pudo completar el análisis.';
+}
+
+function aiInlineFormat(text){
+  return esc(String(text||'')).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+}
+
+function aiResponseHTML(text){
+  const lines=String(text||'').split(/\r?\n/);
+  let html='';
+  let inList=false;
+  const closeList=()=>{if(inList){html+='</ul>';inList=false;}};
+  for(const raw of lines){
+    const line=raw.trim();
+    if(!line){closeList();continue;}
+    const heading=line.match(/^#{1,4}\s+(.+)$/);
+    if(heading){closeList();html+=`<h4>${aiInlineFormat(heading[1])}</h4>`;continue;}
+    const bullet=line.match(/^[-•]\s+(.+)$/);
+    if(bullet){if(!inList){html+='<ul>';inList=true;}html+=`<li>${aiInlineFormat(bullet[1])}</li>`;continue;}
+    closeList();
+    html+=`<p>${aiInlineFormat(line)}</p>`;
+  }
+  closeList();
+  return html || '<p>El análisis llegó vacío.</p>';
+}
+
+async function buildAIAnalysisPayload(date){
+  const sessions=(await getAll(STORE_SESSIONS))
+    .filter(s=>s.date===date)
+    .sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  const day=await getFoodDay(date,false);
+  const totals=day?foodDayTotals(day):emptyMacros();
+  const goal=await nutritionGoalForDate(date);
+  const reference=await measurementReference(date);
+  const allMeasurements=(await getAll(STORE_MEASUREMENTS))
+    .filter(m=>!m.date || m.date<=date)
+    .sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||0)-(b.createdAt||0));
+  const weightRows=allMeasurements.filter(m=>num(m.weight)!==null);
+  const initialWeight=weightRows[0]||null;
+  const currentWeight=weightRows.at(-1)||null;
+  const dayRows=allMeasurements.filter(m=>m.date===date).sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0));
+  const sleepRow=dayRows.find(m=>num(m.sleepHours)!==null)||null;
+  const bodyRows=allMeasurements.filter(hasBodyMeasurementData);
+  const currentBody=bodyRows.at(-1)||null;
+  const body=currentBody?Object.fromEntries(BODY_MEASURE_FIELDS.filter(([k])=>String(currentBody[k]??'').trim()!=='').map(([k,label,unit])=>[k,{label,value:currentBody[k],unit}])):null;
+
+  return {
+    source:'Fit Log',
+    date,
+    profile:{
+      age:reference.age,
+      heightCm:reference.height
+    },
+    weight:{
+      initial:initialWeight?{value:num(initialWeight.weight),date:initialWeight.date}:null,
+      current:currentWeight?{value:num(currentWeight.weight),date:currentWeight.date}:null
+    },
+    sleepHours:sleepRow?num(sleepRow.sleepHours):null,
+    nutrition:{
+      consumed:{
+        calories:round(totals.kcal),
+        proteinG:round(totals.protein,1),
+        fatG:round(totals.fat,1),
+        carbsG:round(totals.carbs,1)
+      },
+      objectives:{
+        calories:round(goal.targetCalories),
+        proteinG:round(goal.protein,1),
+        fatG:round(goal.fat,1),
+        carbsG:round(goal.carbs,1),
+        deficitPercent:num(goal.deficit),
+        estimatedDailyExpenditure:round(goal.expenditure)
+      }
+    },
+    meals:(day?.meals||[])
+      .filter(m=>(m.items||[]).length)
+      .map(m=>({
+        name:m.name,
+        items:(m.items||[]).map(it=>({
+          name:it.name,
+          amount:it.detailText||`${round(it.qty,2)} ${it.unit||''}`.trim(),
+          calories:round(it.kcal),
+          proteinG:round(it.protein,1),
+          fatG:round(it.fat,1),
+          carbsG:round(it.carbs,1)
+        }))
+      })),
+    training:sessions.map(session=>({
+      routine:session.routine,
+      overallFeeling:session.overallFeeling||'',
+      notes:session.notes||'',
+      exercises:(session.exercises||[]).map(exercise=>({
+        name:exercise.name,
+        feeling:exercise.feeling||'',
+        notes:exercise.notes||'',
+        sets:(exercise.sets||[])
+          .filter(st=>setHasData(st,!!exercise.splitSides))
+          .map(st=>({
+            text:formatSetText(st,!!exercise.splitSides),
+            weight:num(st.weight),
+            unit:st.unit||exercise.unit||'',
+            reps:num(st.reps),
+            repsLeft:num(st.repsLeft),
+            repsRight:num(st.repsRight),
+            rir:num(st.rir)
+          }))
+      })).filter(e=>e.sets.length),
+      cardio:session.cardio||null
+    })),
+    latestBodyMeasurements:currentBody?{date:currentBody.date,values:body}:null
+  };
+}
+
+function openAIAnalysisSheet(){
+  const host=document.getElementById('aiAnalysisHost');
+  if(!host) return;
+  host.innerHTML=`<div class="workout-sheet-backdrop ai-analysis-backdrop" data-close-ai-analysis><div class="workout-sheet ai-analysis-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Fit Log IA</span><h3>Analizar con IA</h3></div><button class="icon-btn icon-square" data-close-ai-analysis aria-label="Cerrar">✕</button></div><div class="field"><label>Fecha</label><input id="aiAnalysisDate" type="date" value="${today()}"></div><p class="subtle ai-privacy-note">Envía al servidor los datos de Fit Log del día seleccionado para analizarlos con OpenAI. Requiere conexión.</p><button class="btn primary block" data-action="run-ai-analysis">Analizar día</button><div id="aiAnalysisStatus" class="ai-analysis-status" aria-live="polite"></div><div id="aiAnalysisResult" class="ai-analysis-result hide"></div><button class="btn ghost block hide" data-action="copy-ai-analysis">Copiar análisis</button></div></div>`;
+  host.querySelectorAll('[data-close-ai-analysis]').forEach(x=>x.addEventListener('click',()=>host.innerHTML=''));
+  host.querySelector('[data-action="run-ai-analysis"]')?.addEventListener('click',runAIAnalysis);
+  host.querySelector('[data-action="copy-ai-analysis"]')?.addEventListener('click',async()=>{
+    const text=host.dataset.aiText||'';
+    if(!text)return;
+    try{await navigator.clipboard.writeText(text);const status=document.getElementById('aiAnalysisStatus');if(status)status.textContent='Análisis copiado.';}
+    catch{alert('No se pudo copiar el análisis.');}
+  });
+}
+
+async function runAIAnalysis(){
+  const host=document.getElementById('aiAnalysisHost');
+  const button=host?.querySelector('[data-action="run-ai-analysis"]');
+  const status=document.getElementById('aiAnalysisStatus');
+  const result=document.getElementById('aiAnalysisResult');
+  const copy=host?.querySelector('[data-action="copy-ai-analysis"]');
+  const date=document.getElementById('aiAnalysisDate')?.value||today();
+  if(!host||!button||!status||!result)return;
+
+  button.disabled=true;
+  button.textContent='Analizando…';
+  status.className='ai-analysis-status loading';
+  status.textContent='Preparando tus datos y consultando Fit Log IA…';
+  result.classList.add('hide');
+  if(copy)copy.classList.add('hide');
+
+  try{
+    const payload=await buildAIAnalysisPayload(date);
+    const response=await fetch(AI_WORKER_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    let data=null;
+    try{data=await response.json();}catch{}
+    if(!response.ok || !data?.ok) throw Object.assign(new Error(aiErrorMessage(data?.error,response.status)),{status:response.status});
+    const text=String(data.respuesta||'').trim();
+    if(!text) throw new Error('El servidor respondió sin texto.');
+    host.dataset.aiText=text;
+    result.innerHTML=aiResponseHTML(text);
+    result.classList.remove('hide');
+    if(copy)copy.classList.remove('hide');
+    status.className='ai-analysis-status ok';
+    status.textContent=`Análisis de ${fmtDate(date)}`;
+  }catch(error){
+    console.error(error);
+    status.className='ai-analysis-status error';
+    status.textContent=error?.message||'No se pudo conectar con Fit Log IA.';
+  }finally{
+    button.disabled=false;
+    button.textContent='Analizar día';
+  }
+}
+
 function bindViewEvents(){
   document.querySelectorAll('[data-routine]').forEach(b=>b.addEventListener('click',()=>startRoutine(b.dataset.routine)));
   document.querySelector('[data-resume-workout]')?.addEventListener('click',()=>{activeSessionDraft=loadWorkoutDraft();if(activeSessionDraft)renderWorkout();});
@@ -1819,6 +2001,7 @@ function bindViewEvents(){
   const settingsSheet=document.getElementById('settingsSheet');
   document.querySelector('[data-action="open-settings"]')?.addEventListener('click',()=>settingsSheet?.classList.remove('hide'));
   document.querySelector('[data-action="open-report-share"]')?.addEventListener('click',openReportShareSheet);
+  document.querySelector('[data-action="open-ai-analysis"]')?.addEventListener('click',openAIAnalysisSheet);
   document.querySelector('[data-action="close-settings"]')?.addEventListener('click',()=>settingsSheet?.classList.add('hide'));
   settingsSheet?.addEventListener('click',e=>{ if(e.target===settingsSheet) settingsSheet.classList.add('hide'); });
   document.getElementById('profileSettingsForm')?.addEventListener('submit',e=>{e.preventDefault();saveProfileData(e.currentTarget);});
@@ -1853,7 +2036,7 @@ if(window.visualViewport){
 }
 window.addEventListener('resize',syncWorkoutFloatingToolsViewport);
 
-if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.18',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
+if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.19',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
 openDB().then(seedStarterFoods).then(seedStarterExercises).then(async()=>{
   activeSessionDraft=loadWorkoutDraft() || await loadWorkoutDraftDB();
   if(activeSessionDraft){persistWorkoutDraft();renderWorkout();} else await render();

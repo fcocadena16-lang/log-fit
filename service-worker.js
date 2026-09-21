@@ -1,12 +1,12 @@
-const APP_VERSION = '11.18';
-const CACHE = 'fit-log-shell-v11.18-exercise-catalog';
+const APP_VERSION = '11.19';
+const CACHE = 'fit-log-shell-v11.19-exercise-catalog';
 const CACHE_PREFIX = 'fit-log-shell-';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=11.18',
-  './app.js?v=11.18',
+  './styles.css?v=11.19',
+  './app.js?v=11.19',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',

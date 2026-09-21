@@ -1199,3 +1199,25 @@ button,.btn,.icon-btn,.nav-btn,.tab,.chip,.routine-btn,.dash-card,.list-item,.ti
   .exercise-catalog-screen .catalog-actions{align-items:stretch;flex-direction:column}
   .exercise-catalog-screen .catalog-actions .btn{width:100%}
 }
+
+/* v11.19 — Fit Log IA */
+.app-ai-btn{background:linear-gradient(180deg,#f5f0ff,#eef3ff)!important;color:#5f5bd7!important}
+.app-ai-btn svg{width:22px;height:22px}
+.ai-analysis-sheet{max-height:min(86vh,780px);overflow:auto;padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+.ai-analysis-sheet .sheet-header{position:sticky;top:0;z-index:2;background:rgba(255,255,255,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);padding-top:2px}
+.ai-privacy-note{font-size:13px;line-height:1.45;margin:4px 2px 14px}
+.ai-analysis-status{min-height:22px;margin:14px 2px 8px;font-size:13px;font-weight:750;color:var(--muted)}
+.ai-analysis-status.loading{color:#5c6f96}
+.ai-analysis-status.ok{color:#2f8a63}
+.ai-analysis-status.error{color:#b65353}
+.ai-analysis-result{margin-top:10px;padding:18px;background:linear-gradient(180deg,#fafbff,#f5f8ff);border:1px solid #e5eaf5;border-radius:22px;color:var(--text);line-height:1.5}
+.ai-analysis-result h4{font-size:18px;margin:18px 0 7px;letter-spacing:-.02em}
+.ai-analysis-result h4:first-child{margin-top:0}
+.ai-analysis-result p{margin:8px 0;font-size:15px}
+.ai-analysis-result ul{margin:7px 0 10px;padding-left:22px}
+.ai-analysis-result li{margin:6px 0;font-size:15px}
+.ai-analysis-result + .btn{margin-top:10px}
+@media(max-width:700px){
+  .ai-analysis-sheet{max-height:88vh}
+  .ai-analysis-result{padding:16px;border-radius:20px}
+}
