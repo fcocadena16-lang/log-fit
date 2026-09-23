@@ -1221,3 +1221,7 @@ button,.btn,.icon-btn,.nav-btn,.tab,.chip,.routine-btn,.dash-card,.list-item,.ti
   .ai-analysis-sheet{max-height:88vh}
   .ai-analysis-result{padding:16px;border-radius:20px}
 }
+
+/* v11.20 — temporizador con pausa y reconocimiento */
+.timer-tool.timer-paused{background:#f6f4ff!important;border-color:#ddd6fe!important;color:#6d5bd0!important}
+.timer-tool.timer-done{background:#fff0f2!important;border-color:#ffc7d0!important;color:#b4233b!important}

@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.19';
+const APP_VERSION = '11.20';
 const AI_WORKER_URL = 'https://fitlog-ai.fcocadena-16.workers.dev/';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
@@ -242,7 +242,9 @@ let pendingExerciseInsertIndex = null;
 
 const WORKOUT_DRAFT_KEY = 'fit-log-active-workout-v1';
 const REST_TIMER_KEY = 'fit-log-rest-timer-end-v1';
+const REST_TIMER_PAUSE_KEY = 'fit-log-rest-timer-paused-v1';
 let restTimerEndAt = Number(localStorage.getItem(REST_TIMER_KEY)||0) || 0;
+let restTimerPausedSeconds = Number(localStorage.getItem(REST_TIMER_PAUSE_KEY)||0) || 0;
 let restTimerInterval = null;
 let restTimerAlarmed = false;
 let workoutAudioContext = null;
@@ -779,7 +781,12 @@ function previousSetRowHTML(st,idx,splitSides=false){
   return `<div class="prev-set-row"><b>${idx+1}</b><span class="prev-pill">${esc(st?.weight||'—')} ${esc(st?.unit||'')}</span><span class="prev-pill">${esc(st?.reps||'—')} rep</span><span class="prev-pill">${esc(rir)} RIR</span></div>`;
 }
 function cycleUnit(current){ return current==='kg'?'lb':'kg'; }
-function timerRemainingSeconds(){ return restTimerEndAt?Math.max(0,Math.ceil((restTimerEndAt-Date.now())/1000)):180; }
+function timerRemainingSeconds(){
+  if(restTimerEndAt) return Math.max(0,Math.ceil((restTimerEndAt-Date.now())/1000));
+  if(restTimerPausedSeconds>0) return restTimerPausedSeconds;
+  if(restTimerAlarmed) return 0;
+  return 180;
+}
 function timerLabel(){ const sec=timerRemainingSeconds(); const m=Math.floor(sec/60),s=sec%60; return `${m}:${String(s).padStart(2,'0')}`; }
 function syncWorkoutFloatingToolsViewport(){
   const vv=window.visualViewport;
@@ -797,18 +804,25 @@ function ensureTimerInterval(){
 }
 function updateRestTimerUI(){
   if(restTimerEndAt && Date.now()>=restTimerEndAt){
-    restTimerEndAt=0; localStorage.removeItem(REST_TIMER_KEY);
+    restTimerEndAt=0;
+    restTimerPausedSeconds=0;
+    localStorage.removeItem(REST_TIMER_KEY);
+    localStorage.removeItem(REST_TIMER_PAUSE_KEY);
     if(!restTimerAlarmed){ restTimerAlarmed=true; playRestAlarm(); }
   }
   const running=!!restTimerEndAt;
+  const paused=!running && restTimerPausedSeconds>0 && !restTimerAlarmed;
+  const label=restTimerAlarmed?'0:00':(running||paused?timerLabel():'3:00');
   const el=document.querySelector('[data-rest-timer-display]');
-  if(el) el.textContent=running?timerLabel():'3:00';
+  if(el) el.textContent=label;
   const big=document.querySelector('[data-timer-big]');
-  if(big) big.textContent=running?timerLabel():'3:00';
+  if(big) big.textContent=label;
   const btn=document.querySelector('[data-rest-timer]');
   if(btn){
     btn.classList.toggle('timer-running',running);
-    btn.setAttribute('aria-label',running?'Detener temporizador de descanso':'Iniciar temporizador de descanso');
+    btn.classList.toggle('timer-paused',paused);
+    btn.classList.toggle('timer-done',restTimerAlarmed);
+    btn.setAttribute('aria-label',restTimerAlarmed?'Reconocer fin del temporizador':running?'Pausar temporizador de descanso':paused?'Continuar temporizador de descanso':'Iniciar temporizador de descanso');
   }
 }
 function activateWorkoutAudio(){
@@ -834,12 +848,58 @@ function playRestAlarm(){
   const btn=document.querySelector('[data-rest-timer]'); if(btn) btn.classList.add('timer-done');
 }
 function startRestTimer(){
-  activateWorkoutAudio(); restTimerAlarmed=false; restTimerEndAt=Date.now()+180000; localStorage.setItem(REST_TIMER_KEY,String(restTimerEndAt)); document.querySelector('[data-rest-timer]')?.classList.remove('timer-done'); ensureTimerInterval(); closeWorkoutSheet();
+  activateWorkoutAudio();
+  restTimerAlarmed=false;
+  restTimerPausedSeconds=0;
+  localStorage.removeItem(REST_TIMER_PAUSE_KEY);
+  restTimerEndAt=Date.now()+180000;
+  localStorage.setItem(REST_TIMER_KEY,String(restTimerEndAt));
+  document.querySelector('[data-rest-timer]')?.classList.remove('timer-done','timer-paused');
+  ensureTimerInterval();
+  closeWorkoutSheet();
 }
-function stopRestTimer(){ restTimerEndAt=0; restTimerAlarmed=false; localStorage.removeItem(REST_TIMER_KEY); updateRestTimerUI(); closeWorkoutSheet(); }
+function resumeRestTimer(){
+  activateWorkoutAudio();
+  restTimerAlarmed=false;
+  const seconds=restTimerPausedSeconds>0?restTimerPausedSeconds:180;
+  restTimerPausedSeconds=0;
+  localStorage.removeItem(REST_TIMER_PAUSE_KEY);
+  restTimerEndAt=Date.now()+seconds*1000;
+  localStorage.setItem(REST_TIMER_KEY,String(restTimerEndAt));
+  ensureTimerInterval();
+}
+function pauseRestTimer(){
+  if(!restTimerEndAt) return;
+  restTimerPausedSeconds=Math.max(1,Math.ceil((restTimerEndAt-Date.now())/1000));
+  restTimerEndAt=0;
+  localStorage.removeItem(REST_TIMER_KEY);
+  localStorage.setItem(REST_TIMER_PAUSE_KEY,String(restTimerPausedSeconds));
+  updateRestTimerUI();
+  closeWorkoutSheet();
+}
+function acknowledgeRestTimer(){
+  restTimerEndAt=0;
+  restTimerPausedSeconds=0;
+  restTimerAlarmed=false;
+  localStorage.removeItem(REST_TIMER_KEY);
+  localStorage.removeItem(REST_TIMER_PAUSE_KEY);
+  document.querySelector('[data-rest-timer]')?.classList.remove('timer-done','timer-running','timer-paused');
+  updateRestTimerUI();
+  closeWorkoutSheet();
+}
+function stopRestTimer(){
+  restTimerEndAt=0;
+  restTimerPausedSeconds=0;
+  restTimerAlarmed=false;
+  localStorage.removeItem(REST_TIMER_KEY);
+  localStorage.removeItem(REST_TIMER_PAUSE_KEY);
+  updateRestTimerUI();
+  closeWorkoutSheet();
+}
 function toggleRestTimer(){
-  if(restTimerEndAt && Date.now()<restTimerEndAt) stopRestTimer();
-  else startRestTimer();
+  if(restTimerAlarmed){ acknowledgeRestTimer(); return; }
+  if(restTimerEndAt && Date.now()<restTimerEndAt){ pauseRestTimer(); return; }
+  resumeRestTimer();
 }
 function renderWorkout(){
   const s=activeSessionDraft; if(!s) return;
@@ -849,7 +909,7 @@ function renderWorkout(){
   document.getElementById('app').innerHTML=`<main class="screen workout-screen">
     <div class="workout-floating-tools">
       <button class="workout-tool-btn" data-open-calculator aria-label="Calculadora de unidades"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M8 7h8M8 11h2M14 11h2M8 15h2M14 15h2M8 18h2M14 18h2"/></svg></button>
-      <button class="workout-tool-btn timer-tool" data-rest-timer aria-label="Temporizador de descanso"><span>⏱</span><b data-rest-timer-display>${restTimerEndAt?timerLabel():'3:00'}</b></button>
+      <button class="workout-tool-btn timer-tool" data-rest-timer aria-label="Temporizador de descanso"><span>⏱</span><b data-rest-timer-display>${restTimerAlarmed?'0:00':(restTimerEndAt||restTimerPausedSeconds?timerLabel():'3:00')}</b></button>
     </div>
     <button class="workout-floating-add" data-add-exercise aria-label="Agregar ejercicio en esta parte del entrenamiento"><span>＋</span><b>Ejercicio</b></button>
     <div class="topbar workout-topbar"><button class="btn ghost workout-exit" data-action="close-workout" aria-label="Salir">←</button><div class="workout-title"><h1>${esc(s.routine)}</h1></div></div>
@@ -860,7 +920,7 @@ function renderWorkout(){
     <div id="exerciseList">${s.exercises.map((e,i)=>exerciseHTML(e,i)).join('')}</div>
     <section class="card cardio-card"><div class="section-kicker">Final</div><h3>Cardio</h3><div class="cardio-grid"><div class="field"><label>Minutos</label><input inputmode="numeric" type="number" min="0" step="1" value="${esc(s.cardio.minutes)}" data-cardio="minutes"></div><div class="field"><label>Ritmo cardiaco (bpm)</label><input inputmode="numeric" type="number" min="0" step="1" value="${esc(s.cardio.heartRate)}" data-cardio="heartRate"></div><div class="field"><label>Inclinación</label><input inputmode="decimal" type="number" min="0" step="0.1" value="${esc(s.cardio.incline)}" data-cardio="incline"></div><div class="field"><label>Velocidad</label><input inputmode="decimal" type="number" min="0" step="0.1" value="${esc(s.cardio.speed)}" data-cardio="speed"></div></div></section>
     <section class="card session-card"><div class="section-kicker">Cierre</div><h3>Sesión</h3><div class="field feeling-field"><label>Sensación general</label>${feelingPickerHTML(SESSION_FEELINGS,s.overallFeeling,'data-overall-feeling-choice')}</div><div class="field"><label>Notas generales</label><textarea id="sessionNotes" placeholder="Resumen del entrenamiento…">${esc(s.notes)}</textarea></div></section>
-    <div class="save-actions"><button class="btn primary block save-workout-btn" data-action="save-session">Guardar entrenamiento</button></div>
+    <div class="save-actions"><button class="btn primary block save-workout-btn" data-action="save-session">${s._editingExisting?'Guardar cambios':'Guardar entrenamiento'}</button></div>
     <div id="workoutSheetHost"></div>
   </main>`;
   bindWorkoutEvents(); ensureTimerInterval(); syncWorkoutFloatingToolsViewport();
@@ -913,7 +973,11 @@ function propagateWeight(ei,si,k,value){
   }
 }
 function bindWorkoutEvents(){
-  document.querySelector('[data-action="close-workout"]')?.addEventListener('click',()=>{ if(confirm('¿Salir y descartar este entrenamiento? Si solo cierras la app, el entrenamiento se conserva automáticamente.')){activeSessionDraft=null;clearWorkoutDraft();stopRestTimer();document.getElementById('bottomNav').classList.remove('hide');setView('train');} });
+  document.querySelector('[data-action="close-workout"]')?.addEventListener('click',()=>{
+    const editing=!!activeSessionDraft?._editingExisting;
+    const message=editing?'¿Salir sin guardar los cambios? El entrenamiento guardado no se modificará.':'¿Salir y descartar este entrenamiento? Si solo cierras la app, el entrenamiento se conserva automáticamente.';
+    if(confirm(message)){activeSessionDraft=null;clearWorkoutDraft();stopRestTimer();document.getElementById('bottomNav').classList.remove('hide');setView(editing?'history':'train');}
+  });
   document.querySelectorAll('[data-overall-feeling-choice]').forEach(btn=>btn.addEventListener('click',()=>{const value=btn.dataset.overallFeelingChoice;activeSessionDraft.overallFeeling=activeSessionDraft.overallFeeling===value?'':value;persistWorkoutDraft();document.querySelectorAll('[data-overall-feeling-choice]').forEach(b=>{const on=b.dataset.overallFeelingChoice===activeSessionDraft.overallFeeling;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));});}));
   document.getElementById('sessionNotes')?.addEventListener('input',e=>{activeSessionDraft.notes=e.target.value;persistWorkoutDraft();});
   document.querySelectorAll('[data-cardio]').forEach(el=>el.addEventListener('input',e=>{activeSessionDraft.cardio[e.target.dataset.cardio]=e.target.value;persistWorkoutDraft();}));
@@ -1022,11 +1086,12 @@ function openCalculatorSheet(){
 }
 function openTimerSheet(){
   activateWorkoutAudio(); const host=document.getElementById('workoutSheetHost'); if(!host)return;
-  host.innerHTML=`<div class="workout-sheet-backdrop" data-close-workout-sheet><div class="workout-sheet timer-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Descanso entre series</span><h3>Temporizador</h3></div><button class="icon-btn icon-square" data-close-workout-sheet>✕</button></div><div class="timer-big" data-timer-big>${restTimerEndAt?timerLabel():'3:00'}</div><div class="timer-actions"><button class="btn primary" data-start-rest>Iniciar / reiniciar 3 min</button><button class="btn ghost" data-stop-rest>Detener</button></div><p class="subtle">La alarma suena mientras Fit Log está activo. Si iOS suspende la app, el tiempo queda guardado y se actualiza al volver.</p></div></div>`;
-  host.querySelectorAll('[data-close-workout-sheet]').forEach(x=>x.addEventListener('click',closeWorkoutSheet)); document.querySelector('[data-start-rest]')?.addEventListener('click',startRestTimer); document.querySelector('[data-stop-rest]')?.addEventListener('click',stopRestTimer); ensureTimerInterval();
+  host.innerHTML=`<div class="workout-sheet-backdrop" data-close-workout-sheet><div class="workout-sheet timer-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Descanso entre series</span><h3>Temporizador</h3></div><button class="icon-btn icon-square" data-close-workout-sheet>✕</button></div><div class="timer-big" data-timer-big>${restTimerAlarmed?'0:00':(restTimerEndAt||restTimerPausedSeconds?timerLabel():'3:00')}</div><div class="timer-actions"><button class="btn primary" data-start-rest>Iniciar / reiniciar 3 min</button><button class="btn ghost" data-stop-rest>Pausar</button></div><p class="subtle">La alarma suena mientras Fit Log está activo. Si iOS suspende la app, el tiempo queda guardado y se actualiza al volver.</p></div></div>`;
+  host.querySelectorAll('[data-close-workout-sheet]').forEach(x=>x.addEventListener('click',closeWorkoutSheet)); document.querySelector('[data-start-rest]')?.addEventListener('click',startRestTimer); document.querySelector('[data-stop-rest]')?.addEventListener('click',pauseRestTimer); ensureTimerInterval();
 }
 function cleanSessionForSave(session){
   const s=clone(session);
+  delete s._editingExisting;
   for(const e of s.exercises||[]){
     for(const st of e.sets||[]){
       const manualWeight=String(st?.weight??'')!=='' && !st?._seededWeight;
@@ -1143,11 +1208,29 @@ function historySetHTML(e,st,i){
   }
   return `<div class="row between"><span>Serie ${i+1}</span><strong>${esc(st.weight||'—')} ${esc(st.unit)} × ${esc(st.reps||'—')} ${String(st.rir??'')!==''?`· RIR ${esc(st.rir)}`:''}</strong></div>`;
 }
+async function editSavedSession(id){
+  const saved=await getOne(STORE_SESSIONS,id);
+  if(!saved) return;
+  const current=loadWorkoutDraft();
+  if(current && current.id!==id && !confirm('Tienes otro entrenamiento en curso. ¿Descartarlo para editar este registro?')) return;
+  activeSessionDraft=clone(saved);
+  activeSessionDraft._editingExisting=true;
+  activeSessionDraft.cardio=activeSessionDraft.cardio||{minutes:'',heartRate:'',incline:'',speed:''};
+  for(const e of activeSessionDraft.exercises||[]){
+    e.sets=Array.isArray(e.sets)?e.sets:[];
+    e.sets.forEach((st,i)=>{st.n=i+1;});
+    e.prevRecord=null;
+  }
+  persistWorkoutDraft();
+  renderWorkout();
+}
+
 async function showSession(id){
   const s=await getOne(STORE_SESSIONS,id); if(!s)return; document.getElementById('bottomNav').classList.add('hide');
   const cardio=s.cardio||{}; const hasCardio=Object.values(cardio).some(v=>String(v??'')!=='');
-  document.getElementById('app').innerHTML=`<main class="screen"><div class="topbar"><button class="btn ghost" data-back-history>← Historial</button><div class="row"><button class="btn ghost" data-session-report="${s.date}">Reporte</button><button class="btn danger" data-delete-session="${s.id}">Eliminar</button></div></div><h1>${esc(s.routine)}</h1><div class="subtle">${fmtDate(s.date)}</div>${s.exercises.map(e=>`<section class="card"><h3>${esc(e.name)}</h3>${(e.sets||[]).filter(st=>setHasData(st,!!e.splitSides)).map((st,i)=>historySetHTML(e,st,i)).join('<div class="divider"></div>')||'<span class="subtle">Sin series registradas</span>'}${e.feeling?`<div class="chips"><span class="chip">${esc(e.feeling)}</span></div>`:''}${e.notes?`<p class="subtle">${esc(e.notes)}</p>`:''}</section>`).join('')}${hasCardio?`<section class="card"><h3>Cardio</h3><div class="cardio-history-grid">${cardio.minutes?`<div><span>Minutos</span><strong>${esc(cardio.minutes)}</strong></div>`:''}${cardio.heartRate?`<div><span>Ritmo cardiaco</span><strong>${esc(cardio.heartRate)} bpm</strong></div>`:''}${cardio.incline?`<div><span>Inclinación</span><strong>${esc(cardio.incline)}</strong></div>`:''}${cardio.speed?`<div><span>Velocidad</span><strong>${esc(cardio.speed)}</strong></div>`:''}</div></section>`:''}${s.overallFeeling||s.notes?`<section class="card"><h3>Sesión</h3>${s.overallFeeling?`<p>${esc(s.overallFeeling)}</p>`:''}${s.notes?`<p class="subtle">${esc(s.notes)}</p>`:''}</section>`:''}</main>`;
+  document.getElementById('app').innerHTML=`<main class="screen"><div class="topbar"><button class="btn ghost" data-back-history>← Historial</button><div class="row"><button class="btn ghost" data-edit-session="${s.id}">Editar</button><button class="btn ghost" data-session-report="${s.date}">Reporte</button><button class="btn danger" data-delete-session="${s.id}">Eliminar</button></div></div><h1>${esc(s.routine)}</h1><div class="subtle">${fmtDate(s.date)}</div>${s.exercises.map(e=>`<section class="card"><h3>${esc(e.name)}</h3>${(e.sets||[]).filter(st=>setHasData(st,!!e.splitSides)).map((st,i)=>historySetHTML(e,st,i)).join('<div class="divider"></div>')||'<span class="subtle">Sin series registradas</span>'}${e.feeling?`<div class="chips"><span class="chip">${esc(e.feeling)}</span></div>`:''}${e.notes?`<p class="subtle">${esc(e.notes)}</p>`:''}</section>`).join('')}${hasCardio?`<section class="card"><h3>Cardio</h3><div class="cardio-history-grid">${cardio.minutes?`<div><span>Minutos</span><strong>${esc(cardio.minutes)}</strong></div>`:''}${cardio.heartRate?`<div><span>Ritmo cardiaco</span><strong>${esc(cardio.heartRate)} bpm</strong></div>`:''}${cardio.incline?`<div><span>Inclinación</span><strong>${esc(cardio.incline)}</strong></div>`:''}${cardio.speed?`<div><span>Velocidad</span><strong>${esc(cardio.speed)}</strong></div>`:''}</div></section>`:''}${s.overallFeeling||s.notes?`<section class="card"><h3>Sesión</h3>${s.overallFeeling?`<p>${esc(s.overallFeeling)}</p>`:''}${s.notes?`<p class="subtle">${esc(s.notes)}</p>`:''}</section>`:''}</main>`;
   document.querySelector('[data-back-history]').onclick=()=>{document.getElementById('bottomNav').classList.remove('hide');render();};
+  document.querySelector('[data-edit-session]')?.addEventListener('click',e=>editSavedSession(e.currentTarget.dataset.editSession));
   document.querySelector('[data-session-report]')?.addEventListener('click',e=>shareDailyReport(e.currentTarget.dataset.sessionReport));
   document.querySelector('[data-delete-session]').onclick=async()=>{if(confirm('¿Eliminar este entrenamiento?')){await del(STORE_SESSIONS,id);document.getElementById('bottomNav').classList.remove('hide');render();}};
 }
@@ -2036,7 +2119,7 @@ if(window.visualViewport){
 }
 window.addEventListener('resize',syncWorkoutFloatingToolsViewport);
 
-if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.19',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
+if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.20',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
 openDB().then(seedStarterFoods).then(seedStarterExercises).then(async()=>{
   activeSessionDraft=loadWorkoutDraft() || await loadWorkoutDraftDB();
   if(activeSessionDraft){persistWorkoutDraft();renderWorkout();} else await render();

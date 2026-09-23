@@ -1,6 +1,6 @@
 {
-  "version": "11.19",
-  "published": "2026-09-20",
+  "version": "11.20",
+  "published": "2026-09-22",
   "name": "Fit Log",
-  "notes": "Integración Fit Log IA: análisis por fecha desde la app mediante el Worker privado de Cloudflare y OpenAI."
+  "notes": "Temporizador con iniciar/pausar/continuar y reconocimiento al terminar; entrenamientos guardados ahora se pueden editar para corregir o completar series."
 }
