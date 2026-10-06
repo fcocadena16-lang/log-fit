@@ -1,6 +1,6 @@
 {
-  "version": "11.20",
-  "published": "2026-09-22",
+  "version": "11.21",
+  "published": "2026-10-05",
   "name": "Fit Log",
-  "notes": "Temporizador con iniciar/pausar/continuar y reconocimiento al terminar; entrenamientos guardados ahora se pueden editar para corregir o completar series."
+  "notes": "Temporizador: tocar mientras corre lo restablece a 3:00 y lo deja detenido; al terminar el toque reconoce la alarma y vuelve al estado inicial. Calculadora: permite operaciones como 45+45+45 y muestra resultado y conversión lb↔kg."
 }

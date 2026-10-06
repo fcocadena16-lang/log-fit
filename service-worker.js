@@ -1,12 +1,12 @@
-const APP_VERSION = '11.20';
-const CACHE = 'fit-log-shell-v11.20-timer-edit';
+const APP_VERSION = '11.21';
+const CACHE = 'fit-log-shell-v11.21-timer-calc';
 const CACHE_PREFIX = 'fit-log-shell-';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=11.20',
-  './app.js?v=11.20',
+  './styles.css?v=11.21',
+  './app.js?v=11.21',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',

@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.20';
+const APP_VERSION = '11.21';
 const AI_WORKER_URL = 'https://fitlog-ai.fcocadena-16.workers.dev/';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
@@ -245,6 +245,12 @@ const REST_TIMER_KEY = 'fit-log-rest-timer-end-v1';
 const REST_TIMER_PAUSE_KEY = 'fit-log-rest-timer-paused-v1';
 let restTimerEndAt = Number(localStorage.getItem(REST_TIMER_KEY)||0) || 0;
 let restTimerPausedSeconds = Number(localStorage.getItem(REST_TIMER_PAUSE_KEY)||0) || 0;
+// v11.21: el temporizador ya no conserva un estado de pausa. Si había uno de una versión anterior,
+// vuelve al estado inicial de 3:00 sin arrancar.
+if(restTimerPausedSeconds>0){
+  restTimerPausedSeconds=0;
+  localStorage.removeItem(REST_TIMER_PAUSE_KEY);
+}
 let restTimerInterval = null;
 let restTimerAlarmed = false;
 let workoutAudioContext = null;
@@ -811,8 +817,8 @@ function updateRestTimerUI(){
     if(!restTimerAlarmed){ restTimerAlarmed=true; playRestAlarm(); }
   }
   const running=!!restTimerEndAt;
-  const paused=!running && restTimerPausedSeconds>0 && !restTimerAlarmed;
-  const label=restTimerAlarmed?'0:00':(running||paused?timerLabel():'3:00');
+  const paused=false;
+  const label=restTimerAlarmed?'0:00':(running?timerLabel():'3:00');
   const el=document.querySelector('[data-rest-timer-display]');
   if(el) el.textContent=label;
   const big=document.querySelector('[data-timer-big]');
@@ -822,7 +828,7 @@ function updateRestTimerUI(){
     btn.classList.toggle('timer-running',running);
     btn.classList.toggle('timer-paused',paused);
     btn.classList.toggle('timer-done',restTimerAlarmed);
-    btn.setAttribute('aria-label',restTimerAlarmed?'Reconocer fin del temporizador':running?'Pausar temporizador de descanso':paused?'Continuar temporizador de descanso':'Iniciar temporizador de descanso');
+    btn.setAttribute('aria-label',restTimerAlarmed?'Reconocer fin del temporizador':running?'Restablecer temporizador a 3 minutos':'Iniciar temporizador de descanso');
   }
 }
 function activateWorkoutAudio(){
@@ -858,22 +864,13 @@ function startRestTimer(){
   ensureTimerInterval();
   closeWorkoutSheet();
 }
-function resumeRestTimer(){
-  activateWorkoutAudio();
-  restTimerAlarmed=false;
-  const seconds=restTimerPausedSeconds>0?restTimerPausedSeconds:180;
-  restTimerPausedSeconds=0;
-  localStorage.removeItem(REST_TIMER_PAUSE_KEY);
-  restTimerEndAt=Date.now()+seconds*1000;
-  localStorage.setItem(REST_TIMER_KEY,String(restTimerEndAt));
-  ensureTimerInterval();
-}
-function pauseRestTimer(){
-  if(!restTimerEndAt) return;
-  restTimerPausedSeconds=Math.max(1,Math.ceil((restTimerEndAt-Date.now())/1000));
+function resetRestTimer(){
   restTimerEndAt=0;
+  restTimerPausedSeconds=0;
+  restTimerAlarmed=false;
   localStorage.removeItem(REST_TIMER_KEY);
-  localStorage.setItem(REST_TIMER_PAUSE_KEY,String(restTimerPausedSeconds));
+  localStorage.removeItem(REST_TIMER_PAUSE_KEY);
+  document.querySelector('[data-rest-timer]')?.classList.remove('timer-done','timer-running','timer-paused');
   updateRestTimerUI();
   closeWorkoutSheet();
 }
@@ -888,18 +885,15 @@ function acknowledgeRestTimer(){
   closeWorkoutSheet();
 }
 function stopRestTimer(){
-  restTimerEndAt=0;
-  restTimerPausedSeconds=0;
-  restTimerAlarmed=false;
-  localStorage.removeItem(REST_TIMER_KEY);
-  localStorage.removeItem(REST_TIMER_PAUSE_KEY);
-  updateRestTimerUI();
-  closeWorkoutSheet();
+  resetRestTimer();
 }
 function toggleRestTimer(){
+  // Estado terminado: el toque funciona como ACK y vuelve a 3:00 sin iniciar.
   if(restTimerAlarmed){ acknowledgeRestTimer(); return; }
-  if(restTimerEndAt && Date.now()<restTimerEndAt){ pauseRestTimer(); return; }
-  resumeRestTimer();
+  // Si todavía está corriendo, el toque cancela el descanso actual y lo deja listo en 3:00.
+  if(restTimerEndAt && Date.now()<restTimerEndAt){ resetRestTimer(); return; }
+  // Desde el estado inicial, un toque inicia un descanso nuevo de 3 minutos.
+  startRestTimer();
 }
 function renderWorkout(){
   const s=activeSessionDraft; if(!s) return;
@@ -909,7 +903,7 @@ function renderWorkout(){
   document.getElementById('app').innerHTML=`<main class="screen workout-screen">
     <div class="workout-floating-tools">
       <button class="workout-tool-btn" data-open-calculator aria-label="Calculadora de unidades"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M8 7h8M8 11h2M14 11h2M8 15h2M14 15h2M8 18h2M14 18h2"/></svg></button>
-      <button class="workout-tool-btn timer-tool" data-rest-timer aria-label="Temporizador de descanso"><span>⏱</span><b data-rest-timer-display>${restTimerAlarmed?'0:00':(restTimerEndAt||restTimerPausedSeconds?timerLabel():'3:00')}</b></button>
+      <button class="workout-tool-btn timer-tool" data-rest-timer aria-label="Temporizador de descanso"><span>⏱</span><b data-rest-timer-display>${restTimerAlarmed?'0:00':(restTimerEndAt?timerLabel():'3:00')}</b></button>
     </div>
     <button class="workout-floating-add" data-add-exercise aria-label="Agregar ejercicio en esta parte del entrenamiento"><span>＋</span><b>Ejercicio</b></button>
     <div class="topbar workout-topbar"><button class="btn ghost workout-exit" data-action="close-workout" aria-label="Salir">←</button><div class="workout-title"><h1>${esc(s.routine)}</h1></div></div>
@@ -1077,17 +1071,108 @@ function removeCustomExercise(index){
   if(exerciseHasData(e) && !confirm('Este ejercicio ya tiene datos. ¿Eliminarlo de la sesión?')) return;
   activeSessionDraft.exercises.splice(index,1); persistWorkoutDraft(); renderWorkout();
 }
+function evaluateCalculatorExpression(raw){
+  const source=String(raw||'')
+    .replace(/,/g,'.')
+    .replace(/[×xX]/g,'*')
+    .replace(/÷/g,'/')
+    .replace(/[−–—]/g,'-')
+    .replace(/\s+/g,'');
+  if(!source || !/^[0-9.+\-*/()]+$/.test(source)) return null;
+
+  const tokens=source.match(/\d+(?:\.\d+)?|[()+\-*/]/g);
+  if(!tokens || tokens.join('')!==source) return null;
+  let pos=0;
+
+  function parseExpression(){
+    let value=parseTerm();
+    while(tokens[pos]==='+' || tokens[pos]==='-'){
+      const op=tokens[pos++];
+      const rhs=parseTerm();
+      value=op==='+'?value+rhs:value-rhs;
+    }
+    return value;
+  }
+  function parseTerm(){
+    let value=parseFactor();
+    while(tokens[pos]==='*' || tokens[pos]==='/'){
+      const op=tokens[pos++];
+      const rhs=parseFactor();
+      if(op==='/' && rhs===0) throw new Error('division by zero');
+      value=op==='*'?value*rhs:value/rhs;
+    }
+    return value;
+  }
+  function parseFactor(){
+    const token=tokens[pos++];
+    if(token===undefined) throw new Error('missing value');
+    if(token==='+') return parseFactor();
+    if(token==='-') return -parseFactor();
+    if(token==='('){
+      const value=parseExpression();
+      if(tokens[pos++]!==')') throw new Error('missing parenthesis');
+      return value;
+    }
+    const value=Number(token);
+    if(!Number.isFinite(value)) throw new Error('invalid number');
+    return value;
+  }
+
+  try{
+    const value=parseExpression();
+    if(pos!==tokens.length || !Number.isFinite(value)) return null;
+    return value;
+  }catch{
+    return null;
+  }
+}
 function openCalculatorSheet(){
   const host=document.getElementById('workoutSheetHost'); if(!host)return;
-  host.innerHTML=`<div class="workout-sheet-backdrop" data-close-workout-sheet><div class="workout-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Conversión rápida</span><h3>Calculadora</h3></div><button class="icon-btn icon-square" data-close-workout-sheet>✕</button></div><div class="calc-grid"><div class="field"><label>Valor</label><input id="convertValue" inputmode="decimal" type="number" step="0.01" placeholder="0"></div><div class="field"><label>Convertir</label><select id="convertDirection"><option value="lbkg">lb → kg</option><option value="kglb">kg → lb</option></select></div></div><div class="conversion-result" id="conversionResult">Escribe un valor</div></div></div>`;
+  host.innerHTML=`<div class="workout-sheet-backdrop" data-close-workout-sheet><div class="workout-sheet calculator-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Conversión rápida</span><h3>Calculadora</h3></div><button class="icon-btn icon-square" data-close-workout-sheet>✕</button></div><div class="calc-grid calc-expression-grid"><div class="field"><label>Operación</label><input id="convertValue" inputmode="decimal" type="text" autocomplete="off" spellcheck="false" placeholder="45+45+45"></div><div class="field"><label>Convertir</label><select id="convertDirection"><option value="lbkg">lb → kg</option><option value="kglb">kg → lb</option></select></div></div><div class="calc-operator-row" aria-label="Operaciones"><button type="button" data-calc-key="+">+</button><button type="button" data-calc-key="-">−</button><button type="button" data-calc-key="*">×</button><button type="button" data-calc-key="/">÷</button><button type="button" data-calc-back aria-label="Borrar último carácter">⌫</button><button type="button" data-calc-clear>C</button></div><div class="conversion-result" id="conversionResult">Escribe un valor u operación</div></div></div>`;
   host.querySelectorAll('[data-close-workout-sheet]').forEach(x=>x.addEventListener('click',closeWorkoutSheet));
-  const update=()=>{const v=+document.getElementById('convertValue')?.value;const dir=document.getElementById('convertDirection')?.value;const box=document.getElementById('conversionResult');if(!box)return;if(!Number.isFinite(v)){box.textContent='Escribe un valor';return;}const result=dir==='lbkg'?v*0.45359237:v*2.2046226218;box.innerHTML=`<strong>${round(result,2)}</strong> ${dir==='lbkg'?'kg':'lb'}`;};
-  document.getElementById('convertValue')?.addEventListener('input',update); document.getElementById('convertDirection')?.addEventListener('change',update); document.getElementById('convertValue')?.focus();
+
+  const input=document.getElementById('convertValue');
+  const direction=document.getElementById('convertDirection');
+  const box=document.getElementById('conversionResult');
+  const update=()=>{
+    if(!input || !direction || !box) return;
+    const total=evaluateCalculatorExpression(input.value);
+    if(total===null){ box.textContent=input.value.trim()?'Operación incompleta':'Escribe un valor u operación'; return; }
+    const dir=direction.value;
+    const converted=dir==='lbkg'?total*0.45359237:total*2.2046226218;
+    const fromUnit=dir==='lbkg'?'lb':'kg';
+    const toUnit=dir==='lbkg'?'kg':'lb';
+    box.innerHTML=`<span class="calc-result-label">Resultado</span><strong>${round(total,2)} ${fromUnit}</strong><span class="calc-conversion-line">${round(converted,2)} ${toUnit}</span>`;
+  };
+  const insertAtCursor=value=>{
+    if(!input) return;
+    const start=input.selectionStart??input.value.length;
+    const end=input.selectionEnd??start;
+    input.value=input.value.slice(0,start)+value+input.value.slice(end);
+    const next=start+value.length;
+    input.focus();
+    input.setSelectionRange?.(next,next);
+    update();
+  };
+  input?.addEventListener('input',update);
+  direction?.addEventListener('change',update);
+  host.querySelectorAll('[data-calc-key]').forEach(btn=>btn.addEventListener('click',()=>insertAtCursor(btn.dataset.calcKey||'')));
+  host.querySelector('[data-calc-back]')?.addEventListener('click',()=>{
+    if(!input) return;
+    const start=input.selectionStart??input.value.length;
+    const end=input.selectionEnd??start;
+    if(start!==end){ input.value=input.value.slice(0,start)+input.value.slice(end); input.setSelectionRange?.(start,start); }
+    else if(start>0){ input.value=input.value.slice(0,start-1)+input.value.slice(start); input.setSelectionRange?.(start-1,start-1); }
+    input.focus(); update();
+  });
+  host.querySelector('[data-calc-clear]')?.addEventListener('click',()=>{ if(input){ input.value=''; input.focus(); update(); } });
+  input?.focus();
 }
+
 function openTimerSheet(){
   activateWorkoutAudio(); const host=document.getElementById('workoutSheetHost'); if(!host)return;
-  host.innerHTML=`<div class="workout-sheet-backdrop" data-close-workout-sheet><div class="workout-sheet timer-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Descanso entre series</span><h3>Temporizador</h3></div><button class="icon-btn icon-square" data-close-workout-sheet>✕</button></div><div class="timer-big" data-timer-big>${restTimerAlarmed?'0:00':(restTimerEndAt||restTimerPausedSeconds?timerLabel():'3:00')}</div><div class="timer-actions"><button class="btn primary" data-start-rest>Iniciar / reiniciar 3 min</button><button class="btn ghost" data-stop-rest>Pausar</button></div><p class="subtle">La alarma suena mientras Fit Log está activo. Si iOS suspende la app, el tiempo queda guardado y se actualiza al volver.</p></div></div>`;
-  host.querySelectorAll('[data-close-workout-sheet]').forEach(x=>x.addEventListener('click',closeWorkoutSheet)); document.querySelector('[data-start-rest]')?.addEventListener('click',startRestTimer); document.querySelector('[data-stop-rest]')?.addEventListener('click',pauseRestTimer); ensureTimerInterval();
+  host.innerHTML=`<div class="workout-sheet-backdrop" data-close-workout-sheet><div class="workout-sheet timer-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Descanso entre series</span><h3>Temporizador</h3></div><button class="icon-btn icon-square" data-close-workout-sheet>✕</button></div><div class="timer-big" data-timer-big>${restTimerAlarmed?'0:00':(restTimerEndAt?timerLabel():'3:00')}</div><div class="timer-actions"><button class="btn primary" data-start-rest>Iniciar 3 min</button><button class="btn ghost" data-stop-rest>Restablecer</button></div><p class="subtle">Un toque en el temporizador inicia desde 3:00; si ya está corriendo, vuelve a 3:00 y queda detenido.</p></div></div>`;
+  host.querySelectorAll('[data-close-workout-sheet]').forEach(x=>x.addEventListener('click',closeWorkoutSheet)); document.querySelector('[data-start-rest]')?.addEventListener('click',startRestTimer); document.querySelector('[data-stop-rest]')?.addEventListener('click',resetRestTimer); ensureTimerInterval();
 }
 function cleanSessionForSave(session){
   const s=clone(session);
@@ -2119,7 +2204,7 @@ if(window.visualViewport){
 }
 window.addEventListener('resize',syncWorkoutFloatingToolsViewport);
 
-if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.20',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
+if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.21',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
 openDB().then(seedStarterFoods).then(seedStarterExercises).then(async()=>{
   activeSessionDraft=loadWorkoutDraft() || await loadWorkoutDraftDB();
   if(activeSessionDraft){persistWorkoutDraft();renderWorkout();} else await render();

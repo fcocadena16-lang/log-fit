@@ -1225,3 +1225,18 @@ button,.btn,.icon-btn,.nav-btn,.tab,.chip,.routine-btn,.dash-card,.list-item,.ti
 /* v11.20 — temporizador con pausa y reconocimiento */
 .timer-tool.timer-paused{background:#f6f4ff!important;border-color:#ddd6fe!important;color:#6d5bd0!important}
 .timer-tool.timer-done{background:#fff0f2!important;border-color:#ffc7d0!important;color:#b4233b!important}
+
+
+/* v11.21 — calculadora con operaciones + conversión */
+.calc-expression-grid{align-items:end}
+.calc-operator-row{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:10px 0 4px}
+.calc-operator-row button{min-height:46px;border:1px solid #dfe6f1;border-radius:14px;background:#f7f9fd;color:#26324b;font-size:22px;font-weight:850;box-shadow:0 1px 2px rgba(17,24,39,.04)}
+.calc-operator-row button:active{transform:scale(.97);background:#edf2fb}
+.calculator-sheet #convertValue{font-variant-numeric:tabular-nums;font-size:21px;font-weight:780}
+.conversion-result{display:flex;flex-direction:column;align-items:center;gap:4px}
+.conversion-result .calc-result-label{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#7a87a5}
+.conversion-result .calc-conversion-line{font-size:20px;font-weight:850;color:#536cc8}
+@media(max-width:520px){
+  .calc-operator-row{grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+  .calc-operator-row button{min-height:44px;padding:0;font-size:20px}
+}
