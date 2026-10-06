@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.21';
+const APP_VERSION = '11.22';
 const AI_WORKER_URL = 'https://fitlog-ai.fcocadena-16.workers.dev/';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
@@ -236,6 +236,7 @@ let foodScreen = 'main';
 let foodPickerMealIndex = null;
 let foodPickerFoodId = null;
 let foodEditorId = null;
+let foodTemplateEditId = null;
 let trainScreen = 'main';
 let exerciseEditorId = null;
 let pendingExerciseInsertIndex = null;
@@ -1485,8 +1486,10 @@ async function foodTodayHTML(){
     <div class="macro-grid">${macroBar('protein','Proteína',totals.protein,goal.protein,'g')}${macroBar('fat','Grasa',totals.fat,goal.fat,'g')}${macroBar('carbs','Carbohidratos',totals.carbs,goal.carbs,'g')}</div>
     ${day.meals.map((meal,mi)=>mealHTML(meal,mi)).join('')}
     <button class="btn ghost block extra-meal-btn" data-add-extra-meal>+ Agregar comida</button>
-    <section class="card template-card compact-template-card"><div class="row between"><div><span class="section-kicker">Plantillas</span></div><button class="btn ghost compact" data-save-food-template>Guardar día</button></div>
-      ${templates.length?`<div class="template-list">${templates.map(t=>`<button class="chip template-chip" data-load-food-template="${t.id}">${esc(t.name)}</button>`).join('')}</div>`:'<div class="subtle" style="margin-top:8px">Sin plantillas.</div>'}
+    <section class="card template-card compact-template-card">
+      <div class="row between template-card-head"><div><span class="section-kicker">Plantillas</span></div><button class="btn ghost compact" data-save-food-template>${foodTemplateEditId?'Guardar cambios':'Guardar día'}</button></div>
+      ${foodTemplateEditId?(()=>{const editing=templates.find(t=>t.id===foodTemplateEditId);return editing?`<div class="template-editing-banner"><div><span>Editando plantilla</span><strong>${esc(editing.name)}</strong></div><button class="btn ghost compact" data-cancel-food-template-edit>Cancelar</button></div>`:'';})():''}
+      ${templates.length?`<div class="template-manager-list">${templates.map(t=>`<div class="template-manager-row ${foodTemplateEditId===t.id?'editing':''}"><button class="template-load-button" data-load-food-template="${t.id}"><strong>${esc(t.name)}</strong><small>Tocar para usar</small></button><button class="icon-btn template-action-btn" data-edit-food-template="${t.id}" aria-label="Editar plantilla ${esc(t.name)}" title="Editar">✎</button><button class="icon-btn template-action-btn danger" data-delete-food-template="${t.id}" aria-label="Eliminar plantilla ${esc(t.name)}" title="Eliminar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>`).join('')}</div>`:'<div class="subtle" style="margin-top:8px">Sin plantillas.</div>'}
     </section><div id="foodSheetHost"></div>`;
 }
 function foodQtyStep(unit){
@@ -1641,9 +1644,48 @@ async function copyMealFromYesterday(mi){
   target.items.push(...source.items.map(it=>({...clone(it),id:uid('item'),addedAt:Date.now()}))); day.updatedAt=Date.now(); await put(STORE_FOOD_DAYS,day); render();
 }
 async function saveFoodTemplate(){
-  const day=await getFoodDay(foodSelectedDate,false); if(!day || !day.meals.some(m=>m.items.length)){alert('Primero registra alimentos en el día.');return;}
-  const name=prompt('Nombre de la plantilla','Día habitual'); if(!name?.trim()) return;
-  await put(STORE_FOOD_TEMPLATES,{id:uid('template'),name:name.trim(),createdAt:Date.now(),meals:clone(day.meals)}); render();
+  const day=await getFoodDay(foodSelectedDate,false);
+  if(!day || !day.meals.some(m=>m.items.length)){alert('Primero registra alimentos en el día.');return;}
+
+  if(foodTemplateEditId){
+    const existing=await getOne(STORE_FOOD_TEMPLATES,foodTemplateEditId);
+    if(!existing){foodTemplateEditId=null;alert('La plantilla ya no existe.');render();return;}
+    const name=prompt('Nombre de la plantilla',existing.name||'Día habitual');
+    if(!name?.trim()) return;
+    await put(STORE_FOOD_TEMPLATES,{
+      ...existing,
+      name:name.trim(),
+      meals:clone(day.meals),
+      updatedAt:Date.now()
+    });
+    foodTemplateEditId=null;
+    render();
+    return;
+  }
+
+  const name=prompt('Nombre de la plantilla','Día habitual');
+  if(!name?.trim()) return;
+  await put(STORE_FOOD_TEMPLATES,{id:uid('template'),name:name.trim(),createdAt:Date.now(),updatedAt:Date.now(),meals:clone(day.meals)});
+  render();
+}
+async function editFoodTemplate(id){
+  const t=await getOne(STORE_FOOD_TEMPLATES,id);
+  if(!t) return;
+  const day=await getFoodDay(foodSelectedDate,true);
+  if(day.meals.some(m=>m.items.length) && !confirm(`Para editar “${t.name}” se cargará en el día actual. ¿Reemplazar los alimentos actuales?`)) return;
+  day.meals=await templateMealsWithCurrentFoods(t.meals);
+  day.updatedAt=Date.now();
+  await put(STORE_FOOD_DAYS,day);
+  foodTemplateEditId=id;
+  render();
+}
+async function deleteFoodTemplate(id){
+  const t=await getOne(STORE_FOOD_TEMPLATES,id);
+  if(!t) return;
+  if(!confirm(`¿Eliminar la plantilla “${t.name}”?`)) return;
+  await del(STORE_FOOD_TEMPLATES,id);
+  if(foodTemplateEditId===id) foodTemplateEditId=null;
+  render();
 }
 async function templateMealsWithCurrentFoods(meals){
   const foods=await getAll(STORE_FOODS); const byId=new Map(foods.map(f=>[f.id,f]));
@@ -1661,6 +1703,7 @@ async function templateMealsWithCurrentFoods(meals){
 async function loadFoodTemplate(id){
   const t=await getOne(STORE_FOOD_TEMPLATES,id); if(!t) return; const day=await getFoodDay(foodSelectedDate,true);
   if(day.meals.some(m=>m.items.length) && !confirm('Este día ya tiene alimentos. ¿Reemplazarlos por la plantilla?')) return;
+  foodTemplateEditId=null;
   day.meals=await templateMealsWithCurrentFoods(t.meals); day.updatedAt=Date.now(); await put(STORE_FOOD_DAYS,day); render();
 }
 let nutritionAutoSaveTimer=null;
@@ -1722,11 +1765,11 @@ async function renderFoodPreserveScroll(){
   requestAnimationFrame(()=>window.scrollTo({top:y,left:0,behavior:'auto'}));
 }
 function bindFoodEvents(){
-  document.querySelectorAll('[data-food-tab]').forEach(b=>b.addEventListener('click',()=>{foodTab=b.dataset.foodTab;foodScreen='main';render();}));
-  document.querySelectorAll('[data-food-date]').forEach(b=>b.addEventListener('click',()=>{foodSelectedDate=addDays(foodSelectedDate,+b.dataset.foodDate);render();}));
+  document.querySelectorAll('[data-food-tab]').forEach(b=>b.addEventListener('click',()=>{foodTemplateEditId=null;foodTab=b.dataset.foodTab;foodScreen='main';render();}));
+  document.querySelectorAll('[data-food-date]').forEach(b=>b.addEventListener('click',()=>{foodTemplateEditId=null;foodSelectedDate=addDays(foodSelectedDate,+b.dataset.foodDate);render();}));
   const foodDateInput=document.getElementById('foodDateInput');
   document.querySelector('[data-food-date-picker]')?.addEventListener('click',()=>{try{foodDateInput?.showPicker?.();}catch{foodDateInput?.click();}});
-  foodDateInput?.addEventListener('change',e=>{foodSelectedDate=e.target.value||today();render();});
+  foodDateInput?.addEventListener('change',e=>{foodTemplateEditId=null;foodSelectedDate=e.target.value||today();render();});
   document.querySelectorAll('[data-add-food]').forEach(b=>b.addEventListener('click',()=>{foodPickerMealIndex=+b.dataset.addFood;foodPickerFoodId=null;foodScreen='picker';render();}));
   document.querySelectorAll('[data-add-cheat]').forEach(b=>b.addEventListener('click',()=>openCheatMealSheet(+b.dataset.addCheat)));
   document.querySelector('[data-add-extra-meal]')?.addEventListener('click',openAddMealSheet);
@@ -1741,7 +1784,10 @@ function bindFoodEvents(){
   document.querySelectorAll('[data-edit-food-item]').forEach(b=>b.addEventListener('click',()=>{const [mi,ii]=b.dataset.editFoodItem.split(':').map(Number);editFoodItem(mi,ii);}));
   document.querySelectorAll('[data-copy-yesterday]').forEach(b=>b.addEventListener('click',()=>copyMealFromYesterday(+b.dataset.copyYesterday)));
   document.querySelector('[data-save-food-template]')?.addEventListener('click',saveFoodTemplate);
+  document.querySelector('[data-cancel-food-template-edit]')?.addEventListener('click',()=>{foodTemplateEditId=null;render();});
   document.querySelectorAll('[data-load-food-template]').forEach(b=>b.addEventListener('click',()=>loadFoodTemplate(b.dataset.loadFoodTemplate)));
+  document.querySelectorAll('[data-edit-food-template]').forEach(b=>b.addEventListener('click',()=>editFoodTemplate(b.dataset.editFoodTemplate)));
+  document.querySelectorAll('[data-delete-food-template]').forEach(b=>b.addEventListener('click',()=>deleteFoodTemplate(b.dataset.deleteFoodTemplate)));
   document.querySelectorAll('[data-open-food-day]').forEach(b=>b.addEventListener('click',()=>{foodSelectedDate=b.dataset.openFoodDay;foodTab='today';render();}));
   document.querySelector('[data-new-food]')?.addEventListener('click',()=>{foodEditorId=null;foodPickerMealIndex=null;foodScreen='editor';render();});
   document.querySelectorAll('[data-edit-food]').forEach(b=>b.addEventListener('click',()=>{foodEditorId=b.dataset.editFood;foodPickerMealIndex=null;foodScreen='editor';render();}));
@@ -2204,7 +2250,7 @@ if(window.visualViewport){
 }
 window.addEventListener('resize',syncWorkoutFloatingToolsViewport);
 
-if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.21',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
+if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.22',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
 openDB().then(seedStarterFoods).then(seedStarterExercises).then(async()=>{
   activeSessionDraft=loadWorkoutDraft() || await loadWorkoutDraftDB();
   if(activeSessionDraft){persistWorkoutDraft();renderWorkout();} else await render();

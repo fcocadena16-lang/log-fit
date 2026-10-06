@@ -1240,3 +1240,21 @@ button,.btn,.icon-btn,.nav-btn,.tab,.chip,.routine-btn,.dash-card,.list-item,.ti
   .calc-operator-row{grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
   .calc-operator-row button{min-height:44px;padding:0;font-size:20px}
 }
+
+
+/* v11.22 — administración de plantillas de comida */
+.template-card-head{gap:12px}
+.template-manager-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.template-manager-row{display:grid;grid-template-columns:minmax(0,1fr) 42px 42px;gap:7px;align-items:center;padding:7px;border:1px solid #e1e8f2;border-radius:16px;background:rgba(255,255,255,.82)}
+.template-manager-row.editing{border-color:#9db0ff;box-shadow:0 0 0 3px rgba(92,124,250,.09);background:#f7f9ff}
+.template-load-button{min-width:0;border:0;background:transparent;color:var(--text);text-align:left;padding:7px 8px;display:flex;flex-direction:column;gap:2px}
+.template-load-button strong{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.template-load-button small{font-size:11px;color:var(--muted)}
+.template-action-btn{width:42px;height:42px;min-width:42px;border-radius:13px;font-size:19px}
+.template-action-btn svg{width:20px;height:20px;display:block}
+.template-action-btn.danger{color:var(--danger);background:#fff7f7;border-color:#f1dede}
+.template-editing-banner{margin-top:12px;padding:11px 12px;border-radius:15px;background:#edf2ff;border:1px solid #d9e2ff;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.template-editing-banner>div{min-width:0;display:flex;flex-direction:column;gap:2px}
+.template-editing-banner span{font-size:11px;color:var(--muted);font-weight:700}
+.template-editing-banner strong{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:390px){.template-manager-row{grid-template-columns:minmax(0,1fr) 38px 38px;gap:5px}.template-action-btn{width:38px;height:38px;min-width:38px}}
