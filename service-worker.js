@@ -1,12 +1,12 @@
-const APP_VERSION = '11.22';
-const CACHE = 'fit-log-shell-v11.22-food-templates';
+const APP_VERSION = '11.23';
+const CACHE = 'fit-log-shell-v11.23-calculator-keypad';
 const CACHE_PREFIX = 'fit-log-shell-';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=11.22',
-  './app.js?v=11.22',
+  './styles.css?v=11.23',
+  './app.js?v=11.23',
   './manifest.json',
   './version.json',
   './icons/icon-192.png',

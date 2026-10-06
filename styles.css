@@ -1258,3 +1258,59 @@ button,.btn,.icon-btn,.nav-btn,.tab,.chip,.routine-btn,.dash-card,.list-item,.ti
 .template-editing-banner span{font-size:11px;color:var(--muted);font-weight:700}
 .template-editing-banner strong{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media(max-width:390px){.template-manager-row{grid-template-columns:minmax(0,1fr) 38px 38px;gap:5px}.template-action-btn{width:38px;height:38px;min-width:38px}}
+
+/* v11.23 — calculadora con teclado propio; evita abrir el teclado de iOS */
+.calculator-sheet-custom{padding-bottom:max(18px,env(safe-area-inset-bottom));}
+.calculator-display{
+  min-height:76px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  padding:14px 18px;
+  border:1px solid #dfe6f1;
+  border-radius:20px;
+  background:#fff;
+  color:#172033;
+  font-size:34px;
+  line-height:1.15;
+  font-weight:850;
+  letter-spacing:-.035em;
+  overflow-x:auto;
+  white-space:nowrap;
+  -webkit-overflow-scrolling:touch;
+  box-shadow:0 1px 2px rgba(17,24,39,.03);
+}
+.calculator-result-idle{font-size:16px!important;color:#6f7c97!important;font-weight:750!important;}
+.calculator-keypad{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:9px;
+  margin-top:14px;
+}
+.calculator-keypad button{
+  min-height:58px;
+  border:1px solid #dfe6f1;
+  border-radius:17px;
+  background:#f8faff;
+  color:#1f2b44;
+  font-size:25px;
+  font-weight:850;
+  box-shadow:0 2px 5px rgba(17,24,39,.035);
+  touch-action:manipulation;
+}
+.calculator-keypad button:active{transform:scale(.97);background:#edf2fb;}
+.calculator-keypad .operator{background:#eef3ff;color:#4f6fe8;}
+.calculator-keypad .utility{background:#f2f4f8;color:#35415a;}
+.calculator-keypad .equals{
+  grid-column:1/-1;
+  min-height:60px;
+  background:#5c7cfa;
+  color:#fff;
+  border-color:#5c7cfa;
+  font-size:30px;
+}
+@media(max-width:520px){
+  .calculator-sheet-custom .calc-expression-grid{grid-template-columns:1fr;}
+  .calculator-display{min-height:70px;font-size:31px;}
+  .calculator-keypad button{min-height:54px;font-size:23px;}
+}

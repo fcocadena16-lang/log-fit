@@ -1,6 +1,6 @@
 {
-  "version": "11.22",
+  "version": "11.23",
   "published": "2026-10-05",
   "name": "Fit Log",
-  "notes": "Plantillas de comida editables y eliminables; editar actualiza la misma plantilla en lugar de crear un duplicado."
+  "notes": "Calculadora con teclado propio: suma, multiplicación, paréntesis, borrar e igual; calcula solo al pulsar igual y evita el teclado de iOS."
 }

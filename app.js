@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '11.22';
+const APP_VERSION = '11.23';
 const AI_WORKER_URL = 'https://fitlog-ai.fcocadena-16.workers.dev/';
 let requestedUpdateVersion = null;
 let updateReloadPending = false;
@@ -1129,45 +1129,74 @@ function evaluateCalculatorExpression(raw){
 }
 function openCalculatorSheet(){
   const host=document.getElementById('workoutSheetHost'); if(!host)return;
-  host.innerHTML=`<div class="workout-sheet-backdrop" data-close-workout-sheet><div class="workout-sheet calculator-sheet" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Conversión rápida</span><h3>Calculadora</h3></div><button class="icon-btn icon-square" data-close-workout-sheet>✕</button></div><div class="calc-grid calc-expression-grid"><div class="field"><label>Operación</label><input id="convertValue" inputmode="decimal" type="text" autocomplete="off" spellcheck="false" placeholder="45+45+45"></div><div class="field"><label>Convertir</label><select id="convertDirection"><option value="lbkg">lb → kg</option><option value="kglb">kg → lb</option></select></div></div><div class="calc-operator-row" aria-label="Operaciones"><button type="button" data-calc-key="+">+</button><button type="button" data-calc-key="-">−</button><button type="button" data-calc-key="*">×</button><button type="button" data-calc-key="/">÷</button><button type="button" data-calc-back aria-label="Borrar último carácter">⌫</button><button type="button" data-calc-clear>C</button></div><div class="conversion-result" id="conversionResult">Escribe un valor u operación</div></div></div>`;
+  host.innerHTML=`<div class="workout-sheet-backdrop" data-close-workout-sheet><div class="workout-sheet calculator-sheet calculator-sheet-custom" onclick="event.stopPropagation()"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="section-kicker">Conversión rápida</span><h3>Calculadora</h3></div><button class="icon-btn icon-square" data-close-workout-sheet>✕</button></div><div class="calc-grid calc-expression-grid"><div class="field"><label>Operación</label><div id="convertValue" class="calculator-display" role="textbox" aria-readonly="true" aria-label="Operación">0</div></div><div class="field"><label>Convertir</label><select id="convertDirection"><option value="lbkg">lb → kg</option><option value="kglb">kg → lb</option></select></div></div><div class="conversion-result calculator-result-idle" id="conversionResult">Pulsa = para calcular</div><div class="calculator-keypad" aria-label="Teclado de calculadora"><button type="button" data-calc-key="7">7</button><button type="button" data-calc-key="8">8</button><button type="button" data-calc-key="9">9</button><button type="button" class="calc-key utility" data-calc-back aria-label="Borrar último carácter">⌫</button><button type="button" data-calc-key="4">4</button><button type="button" data-calc-key="5">5</button><button type="button" data-calc-key="6">6</button><button type="button" class="calc-key operator" data-calc-key="(">(</button><button type="button" data-calc-key="1">1</button><button type="button" data-calc-key="2">2</button><button type="button" data-calc-key="3">3</button><button type="button" class="calc-key operator" data-calc-key=")">)</button><button type="button" data-calc-key=".">.</button><button type="button" data-calc-key="0">0</button><button type="button" class="calc-key operator" data-calc-key="+">+</button><button type="button" class="calc-key operator" data-calc-key="*">×</button><button type="button" class="calc-key equals" data-calc-equals>=</button></div></div></div>`;
   host.querySelectorAll('[data-close-workout-sheet]').forEach(x=>x.addEventListener('click',closeWorkoutSheet));
 
-  const input=document.getElementById('convertValue');
+  const display=document.getElementById('convertValue');
   const direction=document.getElementById('convertDirection');
   const box=document.getElementById('conversionResult');
-  const update=()=>{
-    if(!input || !direction || !box) return;
-    const total=evaluateCalculatorExpression(input.value);
-    if(total===null){ box.textContent=input.value.trim()?'Operación incompleta':'Escribe un valor u operación'; return; }
+  let expression='';
+  let lastTotal=null;
+  let justEvaluated=false;
+
+  const pretty=value=>String(value||'').replace(/\*/g,'×');
+  const refreshDisplay=()=>{ if(display) display.textContent=expression?pretty(expression):'0'; };
+  const showIdle=(message='Pulsa = para calcular')=>{
+    if(!box)return;
+    box.classList.add('calculator-result-idle');
+    box.textContent=message;
+  };
+  const showResult=total=>{
+    if(!direction || !box) return;
     const dir=direction.value;
     const converted=dir==='lbkg'?total*0.45359237:total*2.2046226218;
     const fromUnit=dir==='lbkg'?'lb':'kg';
     const toUnit=dir==='lbkg'?'kg':'lb';
+    box.classList.remove('calculator-result-idle');
     box.innerHTML=`<span class="calc-result-label">Resultado</span><strong>${round(total,2)} ${fromUnit}</strong><span class="calc-conversion-line">${round(converted,2)} ${toUnit}</span>`;
   };
-  const insertAtCursor=value=>{
-    if(!input) return;
-    const start=input.selectionStart??input.value.length;
-    const end=input.selectionEnd??start;
-    input.value=input.value.slice(0,start)+value+input.value.slice(end);
-    const next=start+value.length;
-    input.focus();
-    input.setSelectionRange?.(next,next);
-    update();
+  const isDigit=value=>/^[0-9.]$/.test(value);
+  const append=value=>{
+    if(justEvaluated){
+      if(isDigit(value) || value==='('){ expression=''; lastTotal=null; }
+      else if((value==='+' || value==='*') && lastTotal!==null){ expression=String(round(lastTotal,6)); }
+      justEvaluated=false;
+    }
+    // Evita varios puntos seguidos dentro del mismo número.
+    if(value==='.'){
+      const tail=expression.split(/[+*()]/).at(-1)||'';
+      if(tail.includes('.')) return;
+      if(!tail) value='0.';
+    }
+    expression+=value;
+    refreshDisplay();
+    showIdle();
   };
-  input?.addEventListener('input',update);
-  direction?.addEventListener('change',update);
-  host.querySelectorAll('[data-calc-key]').forEach(btn=>btn.addEventListener('click',()=>insertAtCursor(btn.dataset.calcKey||'')));
-  host.querySelector('[data-calc-back]')?.addEventListener('click',()=>{
-    if(!input) return;
-    const start=input.selectionStart??input.value.length;
-    const end=input.selectionEnd??start;
-    if(start!==end){ input.value=input.value.slice(0,start)+input.value.slice(end); input.setSelectionRange?.(start,start); }
-    else if(start>0){ input.value=input.value.slice(0,start-1)+input.value.slice(start); input.setSelectionRange?.(start-1,start-1); }
-    input.focus(); update();
+  const backspace=()=>{
+    justEvaluated=false;
+    lastTotal=null;
+    expression=expression.slice(0,-1);
+    refreshDisplay();
+    showIdle();
+  };
+  const calculate=()=>{
+    const total=evaluateCalculatorExpression(expression||'0');
+    if(total===null){
+      showIdle('Revisa la operación');
+      return;
+    }
+    lastTotal=total;
+    justEvaluated=true;
+    showResult(total);
+  };
+
+  host.querySelectorAll('[data-calc-key]').forEach(btn=>btn.addEventListener('click',()=>append(btn.dataset.calcKey||'')));
+  host.querySelector('[data-calc-back]')?.addEventListener('click',backspace);
+  host.querySelector('[data-calc-equals]')?.addEventListener('click',calculate);
+  direction?.addEventListener('change',()=>{
+    if(lastTotal!==null && justEvaluated) showResult(lastTotal);
   });
-  host.querySelector('[data-calc-clear]')?.addEventListener('click',()=>{ if(input){ input.value=''; input.focus(); update(); } });
-  input?.focus();
+  refreshDisplay();
 }
 
 function openTimerSheet(){
@@ -2250,7 +2279,7 @@ if(window.visualViewport){
 }
 window.addEventListener('resize',syncWorkoutFloatingToolsViewport);
 
-if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.22',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
+if('serviceWorker' in navigator){ window.addEventListener('load',async()=>{ try{ const reg=await navigator.serviceWorker.register('./service-worker.js?v=11.23',{updateViaCache:'none'}); reg.update().catch(()=>{}); }catch(err){ console.error(err); } }); }
 openDB().then(seedStarterFoods).then(seedStarterExercises).then(async()=>{
   activeSessionDraft=loadWorkoutDraft() || await loadWorkoutDraftDB();
   if(activeSessionDraft){persistWorkoutDraft();renderWorkout();} else await render();
